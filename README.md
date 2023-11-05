@@ -30,3 +30,7 @@ services:
 networks:
   my-network:
 ```
+- Save this as docker-compose.yml
+- 'run docker compose up'
+- in terminal execute 'docker exec -it /bin/ash'
+- in the alpine ash shell run 'apk add go'
