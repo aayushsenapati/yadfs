@@ -66,6 +66,10 @@ func handleNewClient(conn net.Conn) {
             return
         case packet := <-dataPipe:
             fmt.Println(string(packet.data), ":", packet.addr)
+            _, err := conn.Write([]byte("ACK"))
+            if err != nil {
+                fmt.Println("Error sending ACK:", err)
+            }
             timer.Reset(6 * time.Second)
         }
     }
