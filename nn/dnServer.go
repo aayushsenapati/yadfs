@@ -1,4 +1,4 @@
-package main
+package dnServer
 
 import (
     "fmt"
@@ -26,10 +26,8 @@ var (
 )
 
 
-
-
-func main() {
-    ipString:="172.18.0.2:12345"
+func Listen(ip,port String){
+    ipString:=ip+":"+port
     listener, err := net.Listen("tcp", ipString)
     if err != nil {
         fmt.Println("Error listening:", err)
@@ -39,8 +37,6 @@ func main() {
 
     fmt.Println("Server listening on", ipString)
     connMap = make(map[uint64]DataNode)
-
-
     for {
         conn, err := listener.Accept()
         if err != nil {
@@ -49,11 +45,12 @@ func main() {
         }
         fmt.Println("New connection established")
         fmt.Println("Number of goroutines:", runtime.NumGoroutine())
-        go handleNewClient(conn,connMap)
+        go handleNewDataNode(conn,connMap)
     }
 }
 
-func handleNewClient(conn net.Conn, connMap map[uint64]DataNode) {
+
+func handleNewDataNode(conn net.Conn, connMap map[uint64]DataNode) {
     dataPipe := make(chan Packet)
     go receTCP(conn, dataPipe)
     timer := time.NewTimer(6 * time.Second)
@@ -93,6 +90,14 @@ func handleNewClient(conn net.Conn, connMap map[uint64]DataNode) {
                     fmt.Println("Error sending ACK:", err)
                 }
             } else {
+                //check if connmap(id) exists
+                if _, ok := connMap[id]; !ok {
+                    fmt.Println("ID not found")
+                    mutex.Lock()
+                    connMap[id] = DataNode{conn: conn, addr: packet.addr}
+                    fmt.Println("Current connections:", connMap)
+                    mutex.Unlock()
+                }
                 ack := make([]byte, 8)
                 binary.BigEndian.PutUint64(ack, id)
                 ack = append(ack, []byte("ACK")...)
