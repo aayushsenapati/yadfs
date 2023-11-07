@@ -10,7 +10,7 @@ import
 
 
 func main() {
-	serverIp := "172.21.0.2"
+	serverIp := "172.21.0.4"
 	serverPort:="12344"
 	conn, err := net.Dial("tcp",serverIp+":"+serverPort)
 	if(err != nil){
