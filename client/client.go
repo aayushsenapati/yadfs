@@ -19,7 +19,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	argv := os.Args[1:]
+	argv := os.Args
 	if(len(argv) == 0)
 	{
 		//make interactive fn
@@ -29,9 +29,10 @@ func main() {
 		os.Exit(1)
 	}
 	else{
-		message := argv[0] + " " + argv[1]
+		message := argv[1] + " " + argv[2]
 		fmt.Println("Sending message:", message)
-		byteBuffer := make([]byte, len(message))
+		byteBuffer := []byte(message)
+
 		_, err := conn.Write(byteBuffer)
 		if(err != nil){
 			fmt.Println("Error sending message:", err)

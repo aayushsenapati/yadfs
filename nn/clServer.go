@@ -1,21 +1,23 @@
 package clServer
 
 import (
-	"fmt"
-	"net"
-	"time"
+    "fmt"
+    "net"
+    "strings"
+    "time"
+    "os"
+    "sync"
 )
-
 
 type Packet struct {
     data []byte
     addr net.Addr
 }
 
+var mutex = &sync.Mutex{}
 
-
-func Listen(ip,port String){
-    ipString:=ip+":"+port
+func Listen(ip, port string) {
+    ipString := ip + ":" + port
     listener, err := net.Listen("tcp", ipString)
     if err != nil {
         fmt.Println("Error listening:", err)
@@ -24,7 +26,7 @@ func Listen(ip,port String){
     defer listener.Close()
 
     fmt.Println("Server listening on", ipString)
-	for {
+    for {
         conn, err := listener.Accept()
         if err != nil {
             fmt.Println("Error accepting connection:", err)
@@ -34,9 +36,8 @@ func Listen(ip,port String){
     }
 }
 
-
 //upon client connection,send back ACK
-func handleNewClient(conn net.Conn){
+func handleNewClient(conn net.Conn) {
     fmt.Println("New connection established")
     conn.Write([]byte("ACK\n"))
     //look for timeouts in one routine and messages in another
@@ -45,55 +46,50 @@ func handleNewClient(conn net.Conn){
 
     dataPipe := make(chan Packet)
     go receTCP(conn, dataPipe)
-    
-    for{
-        select{
-            case <-timer.C:
-                conn.Close()
-                return
-            case packet:=<-dataPipe:
-                timer.Reset(10 * time.Second)
-                fmt.Println("Received client packet from", packet.addr)
-                command := string(packet.data)
-                fmt.Println("Command:", command)
-                var returnMessage string
-                cmdArgs := strings.Split(command, " ")
-                if(len(cmdArgs) <= 1)
-                {
-                    returnMessage = "undefined behaviour"
-                }
-                else
-                {
+
+    for {
+        select {
+        case <-timer.C:
+            conn.Close()
+            return
+        case packet := <-dataPipe:
+            timer.Reset(10 * time.Second)
+            fmt.Println("Received client packet from", packet.addr)
+            command := string(packet.data)
+            fmt.Println("Command:", command)
+            var returnMessage string
+            cmdArgs := strings.Split(command, " ")
+            if len(cmdArgs) <= 1 {
+                returnMessage = "undefined behaviour"
+            } else {
                 switch cmdArgs[0] {
-                    case "mkdir":
-                        path := cmdArgs[1]
-                        mutex.Lock()
-                        fileInfo, err := os.Stat(filePath) //Checking if path exists
-                        if err != nil {
-                            if os.IsNotExist(err) {
-                                err := os.MkdirAll(path, os.ModePerm)
-                                if err != nil {
-                                    fmt.Println(err)
-                                }
-                                returnMessage = "Directory created at: " + path
+                case "mkdir":
+                    path := cmdArgs[1]
+                    mutex.Lock()
+                    fileInfo, err := os.Stat(path) //Checking if path exists
+                    if err != nil {
+                        if os.IsNotExist(err) {
+                            err := os.MkdirAll("root/"+path, os.ModePerm)
+                            if err != nil {
+                                fmt.Println(err)
                             }
-                            else if(fileInfo.Is         Dir()){
-                                returnMessage = "Path already exists"
-                            }
-                            else {
-                                returnMessage = "Path is not a directory"
-                            }
-                            
+                            returnMessage = "Directory created at: " + path
                         }
-                        mutex.Unlock()
-                        
+                    } else if fileInfo.IsDir() {
+                        returnMessage = "Directory already exists"
+                    } else {
+                        returnMessage = "File exists at path"
+                    }
+                    mutex.Unlock()
                 }
+                byteBuffer := []byte(returnMessage)
+                conn.Write(byteBuffer)
             }
-                        
+
         }
-        
+
     }
-        
+
 }
 
 func receTCP(conn net.Conn, dataPipe chan Packet) {

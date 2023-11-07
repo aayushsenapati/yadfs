@@ -1,7 +1,8 @@
 package main
 
 import (
-    "nn/dnServer"
+    "dnServer.go"
+    "clServer.go"
 )
 
 func main() {
