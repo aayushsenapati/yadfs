@@ -17,6 +17,7 @@ type Packet struct {
 var mutex = &sync.Mutex{}
 
 func Listen(ip, port string) {
+    fmt.Println("test from clServer")
     ipString := ip + ":" + port
     listener, err := net.Listen("tcp", ipString)
     if err != nil {
@@ -64,12 +65,12 @@ func handleNewClient(conn net.Conn) {
             } else {
                 switch cmdArgs[0] {
                 case "mkdir":
-                    path := cmdArgs[1]
+                    path := "root/"+cmdArgs[1]
                     mutex.Lock()
                     fileInfo, err := os.Stat(path) //Checking if path exists
                     if err != nil {
                         if os.IsNotExist(err) {
-                            err := os.MkdirAll("root/"+path, os.ModePerm)
+                            err := os.MkdirAll(path, os.ModePerm)
                             if err != nil {
                                 fmt.Println(err)
                             }
