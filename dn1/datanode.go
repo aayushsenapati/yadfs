@@ -8,6 +8,7 @@ import (
     "encoding/binary"
     "bytes"
     "io/ioutil"
+    "io"
 )
 
 type Packet struct {
@@ -34,8 +35,45 @@ func writeIDToFile(filename string, id uint64) error {
 }
 
 
+
+func sendFile(id uint64,conn net.Conn, filePath string) error {
+    file, err := os.Open(filePath)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+
+    // Get file information
+    fileInfo, err := file.Stat()
+    if err != nil {
+        return err
+    }
+
+    // Send the file name and size as a header
+    header := fmt.Sprintf("blockreport:%d", fileInfo.Size())
+    byteBuffer := make([]byte, len(header)+8)
+    binary.BigEndian.PutUint64(byteBuffer, id)
+    copy(byteBuffer[8:], []byte(header))
+    _, err = conn.Write([]byte(byteBuffer))
+    if err != nil {
+        return err
+    }
+
+    // Send the file content
+    _, err = io.Copy(conn, file)
+    if err != nil {
+        return err
+    }
+
+    fmt.Println("File sent successfully.")
+    return nil
+}
+
+
+const report_delay int = 5
+
 func main() {
-    ipString:="172.18.0.3:12345"
+    ipString:="nn-container-devel:12345"
     conn, err := net.Dial("tcp", ipString)
     if err != nil {
         fmt.Println("Error connecting to server:", err)
@@ -58,19 +96,26 @@ func main() {
     defer ticker.Stop()
     defer timer.Stop()
     message := "heartbeat"
+    heartbeatCount := 0
     
     go receTCP(conn,dataPipe)
     for {
         select {
             case <-ticker.C:
-                fmt.Println("Sending to server:", message)
-                byteBuffer := make([]byte, len(message)+8)
-                binary.BigEndian.PutUint64(byteBuffer, id)
-                copy(byteBuffer[8:], []byte(message))
-                _, err := conn.Write(byteBuffer)
-                if err != nil {
-                    fmt.Println("Error sending message:", err)
-                    os.Exit(1)
+                heartbeatCount++
+                if(heartbeatCount==report_delay){
+                    heartbeatCount=0
+                    sendFile(id,conn,"blockReport.txt")
+                }else{
+                    fmt.Println("Sending to server:", message)
+                    byteBuffer := make([]byte, len(message)+8)
+                    binary.BigEndian.PutUint64(byteBuffer, id)
+                    copy(byteBuffer[8:], []byte(message))
+                    _, err := conn.Write(byteBuffer)
+                    if err != nil {
+                        fmt.Println("Error sending message:", err)
+                        os.Exit(1)
+                    }
                 }
             case packet := <-dataPipe:
                 id= binary.BigEndian.Uint64(packet.data[:8])

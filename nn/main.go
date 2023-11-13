@@ -13,12 +13,12 @@ func main() {
     wg.Add(2) // Add 2 because we have 2 goroutines
 
     go func() {
-        dnServer.Listen("172.19.0.4","12345")
+        dnServer.Listen("nn-container-devel","12345")
         wg.Done() // Call Done when the function returns
     }()
 
     go func() {
-        clServer.Listen("172.19.0.4","12344")
+        clServer.Listen("nn-container-devel","12344")
         wg.Done() // Call Done when the function returns
     }()
 
