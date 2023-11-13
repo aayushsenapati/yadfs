@@ -1,5 +1,5 @@
 # yadfs
-Sad attempt at recreating a distributed file system.
+Sad attempt at recreating a distributed communist file system.
 
 
 ## Docker Config
