@@ -6,8 +6,8 @@ import (
     "strings"
     "time"
     "os"
-    "sync"
     "path/filepath"
+    "sync"
 )
 
 type Packet struct {
@@ -41,7 +41,6 @@ func Listen(ip, port string) {
 //upon client connection,send back ACK
 func handleNewClient(conn net.Conn) {
     fmt.Println("New connection established")
-    conn.Write([]byte("ACK\n"))
     //look for timeouts in one routine and messages in another
     timer := time.NewTimer(10 * time.Second)
     defer timer.Stop()
@@ -60,65 +59,67 @@ func handleNewClient(conn net.Conn) {
             command := string(packet.data)
             fmt.Println("Command:", command)
             var returnMessage string
+
             cmdArgs := strings.Split(command, " ")
-            
-            switch cmdArgs[0] {
-
-            case "mkdir":
-                path := "root/"+cmdArgs[1]
-                mutex.Lock()
-                fileInfo, err := os.Stat(path) //Checking if path exists
-                if err != nil {
-                    if os.IsNotExist(err) {
-                        err := os.MkdirAll(path, os.ModePerm)
-                        if err != nil {
-                            fmt.Println(err)
+            if len(cmdArgs) <= 1 {
+                returnMessage = "undefined behaviour"
+            } else {
+                switch cmdArgs[0] {
+                case "mkdir":
+                    path := "root/"+cmdArgs[1]
+                    mutex.Lock()
+                    fileInfo, err := os.Stat(path) //Checking if path exists
+                    if err != nil {
+                        if os.IsNotExist(err) {
+                            err := os.MkdirAll(path, os.ModePerm)
+                            if err != nil {
+                                fmt.Println(err)
+                            }
+                            returnMessage = "Directory created at: " + path
                         }
-                        returnMessage = "Directory created at: " + path
-                    }
-                } else if fileInfo.IsDir() {
-                    returnMessage = "Directory already exists"
-                } else {
-                    returnMessage = "File exists at path"
-                }
-                mutex.Unlock()
-            
-            case "cp":
-                if len(cmdArgs) < 3 {
-                    returnMessage = "Usage: cp destination"
-                } else {
-                    dest := "root/" + cmdArgs[2]
-            
-                    // Get the parent directory of the destination path
-                    parentDir := filepath.Dir(dest)
-            
-                    // Check if the parent directory exists
-                    _, err := os.Stat(parentDir)
-                    if os.IsNotExist(err) {
-                        returnMessage = "Path does not exist"
+                    } else if fileInfo.IsDir() {
+                        returnMessage = "Directory already exists"
                     } else {
-                        // Create the JSON file
-                        file, err := os.Create(dest + ".json")
-                        if err != nil {
-                            returnMessage = "Error creating file: " + err.Error()
+                        returnMessage = "File exists at path"
+                    }
+                    mutex.Unlock()
+                case "cp":
+                    if len(cmdArgs) < 3 {
+                        returnMessage = "Usage: cp destination"
+                    } else {
+                        dest := "root/" + cmdArgs[2]
+                
+                        // Get the parent directory of the destination path
+                        parentDir := filepath.Dir(dest)
+                
+                        // Check if the parent directory exists
+                        _, err := os.Stat(parentDir)
+                        if os.IsNotExist(err) {
+                            returnMessage = "Path does not exist"
                         } else {
-                            defer file.Close()
-            
-                            // Write the JSON data to the file
-                            file.WriteString(fmt.Sprintf(`{"name": "%s", "size": %d}`, filepath.Base(dest), len(cmdArgs[2])))
-            
-                            returnMessage = "File stored successfully"
+                            // Create the JSON file
+                            file, err := os.Create(dest + ".json")
+                            if err != nil {
+                                returnMessage = "Error creating file: " + err.Error()
+                            } else {
+                                defer file.Close()
+                
+                                // Write the JSON data to the file
+                                file.WriteString(fmt.Sprintf(`{"name": "%s", "size": %d}`, filepath.Base(dest), len(cmdArgs[2])))
+                
+                                returnMessage = "File stored successfully"
+                            }
                         }
                     }
                 }
-
+                byteBuffer := []byte(returnMessage)
+                conn.Write(byteBuffer)
             }
-            byteBuffer := []byte(returnMessage)
-            conn.Write(byteBuffer)
 
         }
 
     }
+
 }
 
 func receTCP(conn net.Conn, dataPipe chan Packet) {
@@ -132,4 +133,3 @@ func receTCP(conn net.Conn, dataPipe chan Packet) {
         dataPipe <- Packet{data: buf[:n], addr: conn.RemoteAddr()}
     }
 }
-

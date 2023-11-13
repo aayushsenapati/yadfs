@@ -10,7 +10,7 @@ import
 
 func main() {
 	serverIp := "nn-container-devel"
-	serverPort:="12344"
+	serverPort:="2200"
 	conn, err := net.Dial("tcp",serverIp+":"+serverPort)
 	if(err != nil){
 		fmt.Println("Error connecting to server:", err)
@@ -20,10 +20,9 @@ func main() {
 
 	argv := os.Args
 	if(len(argv) == 0){
-		fmt.Println("Usage: client <server ip> <server port> <command> <args>")
+		fmt.Println("No arguments provided")
 	}else{
-		switch(argv[0]){
-
+		switch(argv[1]){
 		case "mkdir":
 			message := argv[1] + " " + argv[2]
 			fmt.Println("Sending message:", message)
@@ -43,7 +42,6 @@ func main() {
 			}
 			returnMessage := string(returnBuf[:n])
 			fmt.Println("Received message:", returnMessage)
-		
 		case "cp":
 			// Get the source file name and destination from the command line arguments
 			if len(argv) < 3 {
@@ -82,10 +80,6 @@ func main() {
 			returnMessage := string(returnBuf[:n])
 			fmt.Println("Received message:", returnMessage)
 
-
-
-
-		}
 	}
-	
+}
 }
