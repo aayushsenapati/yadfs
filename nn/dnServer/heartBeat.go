@@ -26,8 +26,7 @@ var (
 )
 
 
- func Listen(ip,port string){
-    fmt.Println("test from dnServer")
+ func ListenHb(ip,port string){
     ipString:=ip+":"+port
     listener, err := net.Listen("tcp", ipString)
     if err != nil {

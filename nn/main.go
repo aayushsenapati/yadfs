@@ -14,9 +14,17 @@ func main() {
     wg.Add(2) // Add 2 because we have 2 goroutines
 
     go func() {
-        dnServer.Listen(ipString,"1200")
+        dnServer.ListenHb(ipString,"1200")
         wg.Done() // Call Done when the function returns
     }()
+
+
+    go func() {
+        dnServer.ListenReport(ipString,"1201")
+        wg.Done() // Call Done when the function returns
+    }()
+
+
 
     go func() {
         clServer.Listen(ipString,"12344")
