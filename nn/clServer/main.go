@@ -87,7 +87,7 @@ func handleNewClient(conn net.Conn) {
                     if len(cmdArgs) < 3 {
                         returnMessage = "Usage: cp destination"
                     } else {
-                        dest := "root/" + cmdArgs[2]
+                        dest := "root/" + cmdArgs[1]
                 
                         // Get the parent directory of the destination path
                         parentDir := filepath.Dir(dest)
@@ -105,7 +105,7 @@ func handleNewClient(conn net.Conn) {
                                 defer file.Close()
                 
                                 // Write the JSON data to the file
-                                file.WriteString(fmt.Sprintf(`{"name": "%s", "size": %d}`, filepath.Base(dest), len(cmdArgs[2])))
+                                file.WriteString(fmt.Sprintf(`{"name": "%s", "size": %s}`, filepath.Base(dest), cmdArgs[2]))
                 
                                 returnMessage = "File stored successfully"
                             }
