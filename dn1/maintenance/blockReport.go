@@ -6,7 +6,6 @@ import (
     "os"
     "time"
 	"io"
-    "encoding/binary"
 )
 
 
@@ -29,7 +28,7 @@ func SendReport(ipString, portString string) {
     }
     defer conn.Close()
 
-	var id uint64
+	var id uint8
     ticker := time.NewTicker(15 * time.Second)
 	var fileExists bool = false
     for {
@@ -50,7 +49,7 @@ func SendReport(ipString, portString string) {
 }
 
 
-func sendFile(conn net.Conn, filePath string,id uint64) error {
+func sendFile(conn net.Conn, filePath string,id uint8) error {
     file, err := os.Open(filePath)
     if err != nil {
         return err
@@ -65,9 +64,9 @@ func sendFile(conn net.Conn, filePath string,id uint64) error {
 
     // Send the file name and size as a header
     header := fmt.Sprintf("blockreport:%d", fileInfo.Size())
-	byteBuffer:=make([]byte, len(header)+8)
-	binary.BigEndian.PutUint64(byteBuffer, id)
-	copy(byteBuffer[8:], []byte(header))
+	byteBuffer:=make([]byte, len(header)+1)
+	byteBuffer[0]=byte(id)
+	copy(byteBuffer[1:], []byte(header))
     _, err = conn.Write(byteBuffer)
     if err != nil {
         return err

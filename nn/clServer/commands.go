@@ -2,12 +2,15 @@ package clServer
 
 import (
     "fmt"
+    "math/rand"
     "net"
-    "strings"
-    "time"
     "os"
     "path/filepath"
+    "strings"
     "sync"
+    "time"
+    "strconv"
+    "nn/dnServer"
 )
 
 type Packet struct {
@@ -83,9 +86,13 @@ func handleNewClient(conn net.Conn) {
                         returnMessage = "File exists at path"
                     }
                     mutex.Unlock()
-                case "cp":
+
+
+
+                case "put":
+                    fmt.Println("in clserver:",dnServer.ConnMap)
                     if len(cmdArgs) < 3 {
-                        returnMessage = "Usage: cp destination"
+                        returnMessage = "Usage: put destination source"
                     } else {
                         dest := "root/" + cmdArgs[1]
                 
@@ -98,16 +105,28 @@ func handleNewClient(conn net.Conn) {
                             returnMessage = "Path does not exist"
                         } else {
                             // Create the JSON file
-                            file, err := os.Create(dest + ".json")
-                            if err != nil {
-                                returnMessage = "Error creating file: " + err.Error()
+                            if len(dnServer.ConnMap) < 3 {
+                                returnMessage = "Not enough IDs in ConnMap"
                             } else {
-                                defer file.Close()
-                
-                                // Write the JSON data to the file
-                                file.WriteString(fmt.Sprintf(`{"name": "%s", "size": %s}`, filepath.Base(dest), cmdArgs[2]))
-                
-                                returnMessage = "File stored successfully"
+                                keys := make([]string, 0, len(dnServer.ConnMap))
+                                for k := range dnServer.ConnMap {
+                                    keys = append(keys, strconv.Itoa(int(k)))
+                                }
+                                rand.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
+                                selectedKeys := keys[:3]
+                                selectedKeysString := strings.Join(selectedKeys, ", ")
+                                fmt.Println("Selected IDs:", selectedKeysString)
+                                file, err := os.Create(dest + ".json")
+                                if err != nil {
+                                    returnMessage = "Error creating file: " + err.Error()
+                                } else {
+                                    defer file.Close()
+                    
+                                    // Write the JSON data to the file
+                                    file.WriteString(fmt.Sprintf(`{"name": "%s", "size": %s}`, filepath.Base(dest), cmdArgs[2]))
+                    
+                                    returnMessage = "File stored successfully"
+                                }
                             }
                         }
                     }

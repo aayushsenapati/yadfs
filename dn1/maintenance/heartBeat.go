@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"time"
+	"strconv"
 )
 
 type Packet struct {
@@ -15,16 +16,20 @@ type Packet struct {
 	addr net.Addr
 }
 
-func readIDFromFile(filename string) (uint64, error) {
+func readIDFromFile(filename string) (uint8, error) {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return 0, err
 	}
-	id := binary.BigEndian.Uint64(data)
+	idInt, err := strconv.Atoi(string(data))
+	if err != nil {
+		return 0, err
+	}
+	id := uint8(idInt)
 	return id, nil
 }
 
-func writeIDToFile(filename string, id uint64) error {
+func writeIDToFile(filename string, id uint8) error {
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.BigEndian, id)
 	if err != nil {
@@ -62,16 +67,16 @@ func SendHb(ipString, portString string) {
 		select {
 		case <-ticker.C:
 			fmt.Println("Sending to server:", message)
-			byteBuffer := make([]byte, len(message)+8)
-			binary.BigEndian.PutUint64(byteBuffer, id)
-			copy(byteBuffer[8:], []byte(message))
+			byteBuffer := make([]byte, len(message)+1)
+			byteBuffer[0]=byte(id)
+			copy(byteBuffer[1:], []byte(message))
 			_, err := conn.Write(byteBuffer)
 			if err != nil {
 				fmt.Println("Error sending message:", err)
 				os.Exit(1)
 			}
 		case packet := <-dataPipe:
-			id = binary.BigEndian.Uint64(packet.data[:8])
+			id = uint8(packet.data[0])
 			if !fileExists {
 				err = writeIDToFile("id.bin", id)
 				if err != nil {
@@ -80,7 +85,7 @@ func SendHb(ipString, portString string) {
 				}
 				fileExists = true
 			}
-			fmt.Println("Received from server:", string(packet.data[8:]), id)
+			fmt.Println("Received from server:", string(packet.data[1:]), id)
 			timer.Reset(6 * time.Second)
 		case <-timer.C:
 			fmt.Println("Timeout, no response from server")

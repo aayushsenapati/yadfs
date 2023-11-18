@@ -7,7 +7,6 @@ import (
     "io"
     "strconv"
     "strings"
-    "encoding/binary"
 )
 
 func receiveFile(conn net.Conn) error {
@@ -18,8 +17,8 @@ func receiveFile(conn net.Conn) error {
         return err
     }
 
-    id := binary.BigEndian.Uint64(headerBuf[:8])
-    header := string(headerBuf[8:n])
+    id := uint8(headerBuf[0])
+    header := string(headerBuf[1:n])
     fileSizeStr:=strings.Split(header,":")[1]
     fileSize, err := strconv.Atoi(fileSizeStr)
     if err != nil {
@@ -34,7 +33,7 @@ func receiveFile(conn net.Conn) error {
         return err
     }
     // Create a new file for writing
-    file, err := os.Create("blockreports/" + strconv.FormatUint(id,10))
+    file, err := os.Create("blockreports/" + strconv.Itoa(int(id)))
     if err != nil {
         fmt.Println("Error creating file:", err)
         return err

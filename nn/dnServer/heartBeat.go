@@ -7,7 +7,8 @@ import (
     "runtime"
     "sync"
     "math/rand"
-    "encoding/binary"
+    "os"
+    "strconv"
 )
 
 type Packet struct {
@@ -21,7 +22,7 @@ type DataNode struct {
 }
 
 var (
-    connMap map[uint64]DataNode
+    ConnMap map[uint8]DataNode
     mutex   sync.Mutex
 )
 
@@ -36,7 +37,7 @@ var (
     defer listener.Close()
 
     fmt.Println("Server listening on", ipString)
-    connMap = make(map[uint64]DataNode)
+    ConnMap = make(map[uint8]DataNode)
     for {
         conn, err := listener.Accept()
         if err != nil {
@@ -45,17 +46,17 @@ var (
         }
         fmt.Println("New connection established")
         fmt.Println("Number of goroutines:", runtime.NumGoroutine())
-        go handleNewDataNode(conn,connMap)
+        go handleNewDataNode(conn,ConnMap)
     }
 }
 
 
-func handleNewDataNode(conn net.Conn, connMap map[uint64]DataNode) {
+func handleNewDataNode(conn net.Conn, ConnMap map[uint8]DataNode) {
     dataPipe := make(chan Packet)
     go receTCP(conn, dataPipe)
     timer := time.NewTimer(6 * time.Second)
     defer timer.Stop()
-    var id uint64=0
+    var id uint8=0
     for {
         select {
 
@@ -64,8 +65,8 @@ func handleNewDataNode(conn net.Conn, connMap map[uint64]DataNode) {
             fmt.Println("timeout:",conn.RemoteAddr())
 
             mutex.Lock()
-            delete(connMap, id)
-            fmt.Println("Current connections:", connMap)
+            delete(ConnMap, id)
+            fmt.Println("Current connections:", ConnMap)
             mutex.Unlock()
 
             return
@@ -73,33 +74,53 @@ func handleNewDataNode(conn net.Conn, connMap map[uint64]DataNode) {
 
 
         case packet := <-dataPipe:
-            fmt.Println(string(packet.data[8:]), ":", packet.addr)
-            id = binary.BigEndian.Uint64(packet.data[:8])
+            fmt.Println(string(packet.data[1:]), ":", packet.addr)
+            id = uint8(packet.data[0])
             if id == 0 {
-                newUint := rand.Uint64()
+                // Check if the "blockreports" directory exists. If not, create it.
+                _, err := os.Stat("blockreports")
+                if os.IsNotExist(err) {
+                    err = os.MkdirAll("blockreports", 0755)
+                    if err != nil {
+                        fmt.Println("Error creating directory:", err)
+                        return
+                    }
+                }
+            
+                // Generate a new random ID.
+                newUint := uint8(rand.Intn(256))
+            
+                // Check if a file with the name of the new ID exists in the "blockreports" directory.
+                _, err = os.Stat("blockreports/" + strconv.Itoa(int(newUint)))
+                for os.IsExist(err) {
+                    // If it does, generate a new ID and repeat the process until an unused ID is found.
+                    newUint := uint8(rand.Intn(256))
+                    _, err = os.Stat("blockreports/" + strconv.Itoa(int(newUint)))
+                }
+            
                 mutex.Lock()
-                connMap[newUint] = DataNode{conn: conn, addr: packet.addr}
-                fmt.Println("Current connections:", connMap)
+                ConnMap[newUint] = DataNode{conn: conn, addr: packet.addr}
+                fmt.Println("Current connections:", ConnMap)
                 mutex.Unlock()
                 fmt.Println("Generating New ID:", newUint)
-                ack := make([]byte, 8)
-                binary.BigEndian.PutUint64(ack, newUint)
+                ack := make([]byte, 1)
+                ack[0]=byte(newUint)
                 ack = append(ack, []byte("ACK")...)
-                _, err := conn.Write(ack)
+                _, err = conn.Write(ack)
                 if err != nil {
                     fmt.Println("Error sending ACK:", err)
                 }
             } else {
                 //check if connmap(id) exists
-                if _, ok := connMap[id]; !ok {
+                if _, ok := ConnMap[id]; !ok {
                     fmt.Println("ID not found")
                     mutex.Lock()
-                    connMap[id] = DataNode{conn: conn, addr: packet.addr}
-                    fmt.Println("Current connections:", connMap)
+                    ConnMap[id] = DataNode{conn: conn, addr: packet.addr}
+                    fmt.Println("Current connections:", ConnMap)
                     mutex.Unlock()
                 }
-                ack := make([]byte, 8)
-                binary.BigEndian.PutUint64(ack, id)
+                ack := make([]byte, 1)
+                ack[0]= byte(id)
                 ack = append(ack, []byte("ACK")...)
                 _, err := conn.Write(ack)
                 if err != nil {
