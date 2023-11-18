@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"time"
+
 )
 
 type Packet struct {
@@ -16,12 +17,19 @@ type Packet struct {
 }
 
 func readIDFromFile(filename string) (uint8, error) {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return 0, err
-	}
-	id := binary.BigEndian.Uint8(data)
-	return id, nil
+    file, err := os.Open(filename)
+    if err != nil {
+        return 0, err
+    }
+    defer file.Close()
+
+    var id uint8
+    err = binary.Read(file, binary.BigEndian, &id)
+    if err != nil {
+        return 0, err
+    }
+
+    return id, nil
 }
 
 func writeIDToFile(filename string, id uint8) error {
@@ -62,8 +70,8 @@ func SendHb(ipString, portString string) {
 		select {
 		case <-ticker.C:
 			fmt.Println("Sending to server:", message)
-			byteBuffer := make([]byte, len(message)+8)
-			binary.BigEndian.PutUint8(byteBuffer, id)
+			byteBuffer := make([]byte, len(message)+1)
+			byteBuffer[0]=byte(id)
 			copy(byteBuffer[1:], []byte(message))
 			_, err := conn.Write(byteBuffer)
 			if err != nil {
@@ -71,7 +79,7 @@ func SendHb(ipString, portString string) {
 				os.Exit(1)
 			}
 		case packet := <-dataPipe:
-			id = binary.BigEndian.Uint8(packet.data[:1])
+			id = uint8(packet.data[0])
 			if !fileExists {
 				err = writeIDToFile("id.bin", id)
 				if err != nil {

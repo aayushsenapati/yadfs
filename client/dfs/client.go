@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"encoding/binary"
 )
 
 
@@ -99,70 +100,55 @@ func SendCmd(ip,port string) {
 					lines:=strings.Split(data,"\n")
 
 					blockSize := 128 * 1024 // 128 KB
-					file, err := os.Open(src)
+					inputFile, err := os.Open(src)
 					if err != nil {
 						fmt.Println("Error opening file:", err)
 						return
 					}
-					defer file.Close()
+					defer inputFile.Close()
 
-					for(i:=0;i<len(lines);i+=3){
+					for i := 0; i < len(lines); i += 3 {
 						//parse the first line to get ip(format is ip:blockid) and every three lines corresponds to a block
-						ip:=strings.Split(lines[i],":")[0]
-						blockid:=strings.Split(lines[i],":")[1]
+						parts:=strings.Split(lines[i],":")
+						ip,blockid:=parts[0],parts[1]
 						//split file at src into len(lines)/3 blocks and send each block to the corresponding ip
-						outputFile, err := os.Create(blockid+".bin")
-						if err != nil {
-							fmt.Println("Error creating output file:", err)
-							return
-						}
-						defer outputFile.Close()
 
 
 						// Read and write the block to the output file
 						buffer := make([]byte, blockSize)
-						_, err = inputFile.Read(buffer)
+						f_size, err := inputFile.Read(buffer)
 						if err != nil {
 							fmt.Println("Error reading from input file:", err)
 							return
 						}
 
-						blockSize, err = outputFile.Write(buffer)
-						if err != nil {
-							fmt.Println("Error writing to output file:", err)
-							return
-						}
-
-						_, err = inputFile.Seek(offset, os.SEEK_CUR)
+						_, err = inputFile.Seek(int64(blockSize), os.SEEK_CUR)
 						if err != nil {
 							fmt.Println("Error seeking input file:", err)
 							return
 						}
 						
-						net.Dial("tcp",ip+":3200")
-						buffer := make([]byte,8+8+1)
-						binary.BigEndian.PutUint64(buffer,blockid)
-						binary.BigEndian.PutUint64(buffer[8:],uint64(blockSize))
-						buffer[8]=byte(3)
-						buffer.append(lines[i+1] + "\n" + lines[i+2])
-						_, err := conn.Write(buffer)
+						conn3,err:=net.Dial("tcp",ip+":3200")
+						defer conn3.Close()
+						headerBuf := make([]byte,3+8+8+1)
+						copy(headerBuf[:3],[]byte("put"))
+
+
+						blockIDUint64, err := strconv.ParseUint(blockid, 10, 64)
+						if err != nil {
+							fmt.Println("Error converting blockid to uint64:", err)
+							return
+						}
+						binary.BigEndian.PutUint64(headerBuf[3:],blockIDUint64)
+						binary.BigEndian.PutUint64(headerBuf[11:],uint64(f_size))
+						headerBuf[19]=byte(3)
+						headerBuf = append(headerBuf, []byte(lines[i+1]+"\n"+lines[i+2])...)
+
+						_, err = conn3.Write(headerBuf)
 						if err != nil {
 							fmt.Println("Error sending message:", err)
 							return
-
-
-						}
-						err := os.Remove(blockid+".bin")
-						if err != nil {
-							fmt.Println("Error deleting file:", err)
-							return
-						}
-
-
-
-
-
-
+						}	
 					}
 					fmt.Println("Received data:", len(data))
 					return 
@@ -171,7 +157,7 @@ func SendCmd(ip,port string) {
 				}()
 
 
-			}
+			}()
 			returnBuf := make([]byte, 1024)
 			n, err := conn.Read(returnBuf)
 			if err != nil {
@@ -182,3 +168,4 @@ func SendCmd(ip,port string) {
 			fmt.Println("Received message:", returnMessage)
 		}
 	}
+}

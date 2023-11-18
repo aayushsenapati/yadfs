@@ -8,7 +8,7 @@ import (
 	"net"
 	"os"
 	"time"
-	"strconv"
+
 )
 
 type Packet struct {
@@ -17,16 +17,19 @@ type Packet struct {
 }
 
 func readIDFromFile(filename string) (uint8, error) {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return 0, err
-	}
-	idInt, err := strconv.Atoi(string(data))
-	if err != nil {
-		return 0, err
-	}
-	id := uint8(idInt)
-	return id, nil
+    file, err := os.Open(filename)
+    if err != nil {
+        return 0, err
+    }
+    defer file.Close()
+
+    var id uint8
+    err = binary.Read(file, binary.BigEndian, &id)
+    if err != nil {
+        return 0, err
+    }
+
+    return id, nil
 }
 
 func writeIDToFile(filename string, id uint8) error {

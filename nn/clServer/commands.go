@@ -2,6 +2,7 @@ package clServer
 
 import (
     "fmt"
+    crand "crypto/rand"
     "math/rand"
     "net"
     "os"
@@ -11,6 +12,8 @@ import (
     "time"
     "strconv"
     "nn/dnServer"
+    "encoding/json"
+    "encoding/binary"
 )
 
 type Packet struct {
@@ -18,7 +21,18 @@ type Packet struct {
     addr net.Addr
 }
 
+type FileData struct {
+    Filename string     `json:"filename"`
+    Filesize int        `json:"filesize"`
+    Blocks   [][]uint64 `json:"blocks"`
+}
+
+
 var mutex = &sync.Mutex{}
+
+
+var blockSize int = 128*1024
+
 
 func Listen(ip, port string) {
     fmt.Println("test from clServer")
@@ -90,7 +104,7 @@ func handleNewClient(conn net.Conn) {
 
 
                 case "put":
-                    fmt.Println("in clserver:",dnServer.ConnMap)
+                    fmt.Println("in clserver:", dnServer.ConnMap)
                     if len(cmdArgs) < 3 {
                         returnMessage = "Usage: put destination source"
                     } else {
@@ -108,28 +122,64 @@ func handleNewClient(conn net.Conn) {
                             if len(dnServer.ConnMap) < 3 {
                                 returnMessage = "Not enough IDs in ConnMap"
                             } else {
-                                keys := make([]string, 0, len(dnServer.ConnMap))
-                                for k := range dnServer.ConnMap {
-                                    keys = append(keys, strconv.Itoa(int(k)))
-                                }
-                                rand.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
-                                selectedKeys := keys[:3]
-                                selectedKeysString := strings.Join(selectedKeys, ", ")
-                                fmt.Println("Selected IDs:", selectedKeysString)
                                 file, err := os.Create(dest + ".json")
                                 if err != nil {
                                     returnMessage = "Error creating file: " + err.Error()
                                 } else {
                                     defer file.Close()
-                    
-                                    // Write the JSON data to the file
-                                    file.WriteString(fmt.Sprintf(`{"name": "%s", "size": %s}`, filepath.Base(dest), cmdArgs[2]))
-                    
-                                    returnMessage = "File stored successfully"
+                                    fileSize, _ := strconv.Atoi(cmdArgs[2])
+                                    numBlocks := (fileSize + blockSize - 1) / blockSize
+                                    keysAndBlockIDs := make([][]uint64, numBlocks)
+                
+                                    for i := 0; i < numBlocks; i++ {
+                                        // Generate an array of keys from the ConnMap
+                                        keys := make([]int, 0, len(dnServer.ConnMap))
+                                        for k := range dnServer.ConnMap {
+                                            keys = append(keys, int(k))
+                                        }
+                
+                                        // Shuffle the keys array
+                                        rand.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
+                
+                                        // Select the first 3 keys from the shuffled array
+                                        selectedDNID := keys[:3]
+                
+                                        // Generate three random 56-bit block IDs for this block and its 2 replicas
+                                        blockIDs := make([]uint64, 3)
+                                        for j := 0; j < 3; j++ {
+                                            //generate random 56-bit block ID to append key(8 bit)
+                                            blockID := make([]byte, 8)
+                                            blockID[0] = byte(selectedDNID[j])
+                                            crand.Read(blockID[1:])
+                                            blockIDs[j] = binary.BigEndian.Uint64(blockID)
+                                        }
+                
+                                        // Append these block IDs to the keys in the keyArray
+                                        keysAndBlockIDs[i] = append(keysAndBlockIDs[i], blockIDs...)
+                                    }
+                
+                                    fileData := FileData{
+                                        Filename: filepath.Base(dest),
+                                        Filesize: fileSize,
+                                        Blocks:   keysAndBlockIDs,
+                                    }
+                                    encoder := json.NewEncoder(file)
+                
+                                    // Write the file data to the file as JSON
+                                    err = encoder.Encode(fileData)
+                                    if err != nil {
+                                        returnMessage = "Error writing to file: " + err.Error()
+                                    } else {
+                                        returnMessage = "File stored successfully"
+                                    }
                                 }
                             }
                         }
                     }
+
+
+
+
                 }
                 byteBuffer := []byte(returnMessage)
                 conn.Write(byteBuffer)

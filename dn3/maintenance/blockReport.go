@@ -6,7 +6,6 @@ import (
     "os"
     "time"
 	"io"
-    "encoding/binary"
 )
 
 
@@ -66,7 +65,7 @@ func sendFile(conn net.Conn, filePath string,id uint8) error {
     // Send the file name and size as a header
     header := fmt.Sprintf("blockreport:%d", fileInfo.Size())
 	byteBuffer:=make([]byte, len(header)+1)
-	binary.BigEndian.PutUint8(byteBuffer, id)
+	byteBuffer[0]=byte(id)
 	copy(byteBuffer[1:], []byte(header))
     _, err = conn.Write(byteBuffer)
     if err != nil {
