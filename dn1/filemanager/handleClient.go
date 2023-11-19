@@ -1,7 +1,10 @@
 package filemanager
 
 
-
+import (
+    "fmt"
+    "net"
+)
 
 
 func ClientListener(ip, port string) {
@@ -31,7 +34,7 @@ func handleNewClient(conn net.Conn) {
 	if err!=nil {
 		fmt.Println("Error reading command:", err)
 	}
-
+	command:=string(commandbuf[:3])
 	switch command {
 	case "put":
 		fmt.Println("Put command received!")

@@ -147,8 +147,12 @@ func SendCmd(ip,port string) {
 						buffer := make([]byte, blockSize)
 						f_size, err := inputFile.Read(buffer)
 						if err != nil {
-							fmt.Println("Error reading from input file:", err)
-							return
+							if err == io.EOF {
+								fmt.Println("End of file reached")
+							} else {
+								fmt.Println("Error reading from input file:", err)
+								return
+							}
 						}
 				
 						_, err = inputFile.Seek(int64(blockSize), os.SEEK_CUR)
@@ -163,7 +167,7 @@ func SendCmd(ip,port string) {
 							return
 						}
 						defer conn3.Close()
-				
+						fmt.Println("Connected to server")
 						headerBuf := make([]byte, 3+8+8+1)
 						copy(headerBuf[:3], []byte("put"))
 						binary.BigEndian.PutUint64(headerBuf[3:], blockid)
@@ -176,6 +180,7 @@ func SendCmd(ip,port string) {
 							fmt.Println("Error sending message:", err)
 							return
 						}
+						fmt.Println("Sent message")
 					}
 					return
 				}()
