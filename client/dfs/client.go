@@ -144,8 +144,8 @@ func SendCmd(ip,port string) {
 						blockid := binary.BigEndian.Uint64(data[i+4 : i+12])
 				
 						// Read and write the block to the output file
-						buffer := make([]byte, blockSize)
-						f_size, err := inputFile.Read(buffer)
+						blockbuffer := make([]byte, blockSize)
+						f_size, err := inputFile.Read(blockbuffer)
 						if err != nil {
 							if err == io.EOF {
 								fmt.Println("End of file reached")
@@ -153,12 +153,6 @@ func SendCmd(ip,port string) {
 								fmt.Println("Error reading from input file:", err)
 								return
 							}
-						}
-				
-						_, err = inputFile.Seek(int64(blockSize), os.SEEK_CUR)
-						if err != nil {
-							fmt.Println("Error seeking input file:", err)
-							return
 						}
 				
 						conn3, err := net.Dial("tcp", ip+":3200")
@@ -180,7 +174,39 @@ func SendCmd(ip,port string) {
 							fmt.Println("Error sending message:", err)
 							return
 						}
-						fmt.Println("Sent message")
+						
+						//upon receiving ack send buffer
+						ackBuf := make([]byte, 3)
+						_, err = conn3.Read(ackBuf)
+						if err != nil {
+							fmt.Println("Error reading:", err)
+							return
+						}
+						fmt.Println("Received ack:", ackBuf)
+						if string(ackBuf) != "ack" {
+							fmt.Println("Error receiving ack")
+							return
+						}
+						fmt.Println("\n\n\n\n\n\n\n",len(blockbuffer[:f_size]))
+						_,err=conn3.Write(blockbuffer[:f_size])
+						if err != nil {
+							fmt.Println("Error sending block:", err)
+							return
+						}
+						fmt.Println("Sent block")
+
+						// Read the response
+						responseBuf := make([]byte, 3)
+						_, err = conn3.Read(responseBuf)
+						if err != nil {
+							fmt.Println("Error reading response:", err)
+							return
+						}
+						if(string(responseBuf) != "ack"){
+							fmt.Println("Error receiving ack")
+							return
+						}
+						fmt.Println("file stored successfully")
 					}
 					return
 				}()
