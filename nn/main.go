@@ -11,7 +11,7 @@ func main() {
     ipString:="nn-container-devel"
     var wg sync.WaitGroup
 
-    wg.Add(3) // Add 2 because we have 2 goroutines
+    wg.Add(4) // Add 2 because we have 2 goroutines
 
     go func() {
         dnServer.ListenHb(ipString,"1200")
@@ -28,6 +28,11 @@ func main() {
 
     go func() {
         clServer.Listen(ipString,"2200")
+        wg.Done() // Call Done when the function returns
+    }()
+
+    go func() {
+        clServer.Metadata(ipString,"2201")
         wg.Done() // Call Done when the function returns
     }()
 

@@ -17,8 +17,8 @@ type Packet struct {
 }
 
 type DataNode struct {
-    conn net.Conn
-    addr net.Addr
+    Conn net.Conn
+    Addr net.Addr
 }
 
 var (
@@ -99,7 +99,7 @@ func handleNewDataNode(conn net.Conn, ConnMap map[uint8]DataNode) {
                 }
             
                 mutex.Lock()
-                ConnMap[newUint] = DataNode{conn: conn, addr: packet.addr}
+                ConnMap[newUint] = DataNode{Conn: conn, Addr: packet.addr}
                 fmt.Println("Current connections:", ConnMap)
                 mutex.Unlock()
                 fmt.Println("Generating New ID:", newUint)
@@ -115,7 +115,7 @@ func handleNewDataNode(conn net.Conn, ConnMap map[uint8]DataNode) {
                 if _, ok := ConnMap[id]; !ok {
                     fmt.Println("ID not found")
                     mutex.Lock()
-                    ConnMap[id] = DataNode{conn: conn, addr: packet.addr}
+                    ConnMap[id] = DataNode{Conn: conn, Addr: packet.addr}
                     fmt.Println("Current connections:", ConnMap)
                     mutex.Unlock()
                 }
