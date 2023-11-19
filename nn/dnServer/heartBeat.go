@@ -12,8 +12,8 @@ import (
 )
 
 type Packet struct {
-    data []byte
-    addr net.Addr
+    Data []byte
+    Addr net.Addr
 }
 
 type DataNode struct {
@@ -74,8 +74,8 @@ func handleNewDataNode(conn net.Conn, ConnMap map[uint8]DataNode) {
 
 
         case packet := <-dataPipe:
-            fmt.Println(string(packet.data[1:]), ":", packet.addr)
-            id = uint8(packet.data[0])
+            fmt.Println(string(packet.Data[1:]), ":", packet.Addr)
+            id = uint8(packet.Data[0])
             if id == 0 {
                 // Check if the "blockreports" directory exists. If not, create it.
                 _, err := os.Stat("blockreports")
@@ -99,7 +99,7 @@ func handleNewDataNode(conn net.Conn, ConnMap map[uint8]DataNode) {
                 }
             
                 mutex.Lock()
-                ConnMap[newUint] = DataNode{Conn: conn, Addr: packet.addr}
+                ConnMap[newUint] = DataNode{Conn: conn, Addr: packet.Addr}
                 fmt.Println("Current connections:", ConnMap)
                 mutex.Unlock()
                 fmt.Println("Generating New ID:", newUint)
@@ -113,9 +113,9 @@ func handleNewDataNode(conn net.Conn, ConnMap map[uint8]DataNode) {
             } else {
                 //check if connmap(id) exists
                 if _, ok := ConnMap[id]; !ok {
-                    fmt.Println("ID not found")
+                    fmt.Println("Existing datanode inbound")
                     mutex.Lock()
-                    ConnMap[id] = DataNode{Conn: conn, Addr: packet.addr}
+                    ConnMap[id] = DataNode{Conn: conn, Addr: packet.Addr}
                     fmt.Println("Current connections:", ConnMap)
                     mutex.Unlock()
                 }
@@ -140,6 +140,6 @@ func receTCP(conn net.Conn, dataPipe chan Packet) {
             fmt.Println("Error reading:", err)
             return
         }
-        dataPipe <- Packet{data: buf[:n], addr: conn.RemoteAddr()}
+        dataPipe <- Packet{Data: buf[:n], Addr: conn.RemoteAddr()}
     }
 }

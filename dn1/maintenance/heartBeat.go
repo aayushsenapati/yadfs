@@ -52,6 +52,7 @@ func SendHb(ipString, portString string) {
 	defer conn.Close()
 	var fileExists bool = true
 	id, err := readIDFromFile("id.bin")
+	fmt.Println("id:", id)
 	if err != nil {
 		fmt.Println("Error reading id from file:", err, "id does not exist")
 		fileExists = false

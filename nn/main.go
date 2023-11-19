@@ -27,7 +27,7 @@ func main() {
 
 
     go func() {
-        clServer.Listen(ipString,"2200")
+        clServer.ListenCommand(ipString,"2200")
         wg.Done() // Call Done when the function returns
     }()
 

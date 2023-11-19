@@ -3,6 +3,8 @@ package clServer
 import (
     "fmt"
     "net"
+    "bytes"
+    "encoding/binary"
 )
 
 func Metadata(ip,port string) {
@@ -27,8 +29,41 @@ func Metadata(ip,port string) {
 
 
 func handleNewClient1(conn net.Conn) {
-	blockList := <-BlockListChan
-	fmt.Println("Sending blocklist")
-	conn.Write(blockList)
+    // Create a buffer to read from the connection
+    buf := make([]byte, 1024)
+    n, err := conn.Read(buf)
+    if err != nil {
+        fmt.Println("Error reading:", err)
+        return
+    }
 
+    // The first byte is the clientID
+    clientID := buf[0]
+
+    // The rest is the command
+    command := string(buf[1:n])
+
+    // If the command is "put", read from ClientChanMap[clientID] and write to the connection
+    if command == "put" {
+        blockList, ok := <-ClientChanMap[clientID]
+        if ok {
+            fmt.Println("Sending blocklist")
+            var byteBuffer bytes.Buffer
+
+            // Write the size of blockList as an int64 to the byteBuffer
+            binary.Write(&byteBuffer, binary.BigEndian, int64(len(blockList)))
+
+            // Write the byteBuffer to the connection
+            conn.Write(byteBuffer.Bytes())
+            ackBuf := make([]byte, 3)
+            _, err = conn.Read(ackBuf)
+            if err != nil {
+                fmt.Println("Error reading:", err)
+                return
+            }
+            conn.Write(blockList)
+        } else {
+            fmt.Println("Error: No blocklist for clientID", clientID)
+        }
+    }
 }

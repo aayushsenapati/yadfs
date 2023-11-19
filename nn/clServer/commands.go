@@ -29,12 +29,13 @@ type FileData struct {
 
 
 var mutex = &sync.Mutex{}
+var ClientChanMapMutex = &sync.Mutex{}
 
 
 var blockSize int = 128*1024
-var BlockListChan chan []byte
+var ClientChanMap map[uint8]chan []byte
 
-func Listen(ip, port string) {
+func ListenCommand(ip, port string) {
     ipString := ip + ":" + port
     listener, err := net.Listen("tcp", ipString)
     if err != nil {
@@ -42,7 +43,7 @@ func Listen(ip, port string) {
         return
     }
     defer listener.Close()
-    BlockListChan = make(chan []byte)
+    ClientChanMap = make(map[uint8]chan []byte)
 
     fmt.Println("Server listening on", ipString)
     for {
@@ -61,6 +62,20 @@ func handleNewClient(conn net.Conn) {
     //look for timeouts in one routine and messages in another
     timer := time.NewTimer(10 * time.Second)
     defer timer.Stop()
+
+
+    clientChan := make(chan []byte)
+
+    var clientID uint8
+    ClientChanMapMutex.Lock()
+    for {
+        clientID = uint8(rand.Intn(256))
+        if _, exists := ClientChanMap[clientID]; !exists {
+            break
+        }
+    }
+    ClientChanMap[clientID] = clientChan
+    ClientChanMapMutex.Unlock()
 
     dataPipe := make(chan Packet)
     go receTCP(conn, dataPipe)
@@ -122,78 +137,95 @@ func handleNewClient(conn net.Conn) {
                             if len(dnServer.ConnMap) < 3 {
                                 returnMessage = "Not enough IDs in ConnMap"
                             } else {
-                                file, err := os.Create(dest + ".json")
-                                if err != nil {
-                                    returnMessage = "Error creating file: " + err.Error()
-                                } else {
-                                    defer file.Close()
-                                    fileSize, _ := strconv.Atoi(cmdArgs[2])
-                                    numBlocks := (fileSize + blockSize - 1) / blockSize
-                                    keysAndBlockIDs := make([][]uint64, numBlocks)
-                
-                                    for i := 0; i < numBlocks; i++ {
-                                        // Generate an array of keys from the ConnMap
-                                        keys := make([]int, 0, len(dnServer.ConnMap))
-                                        for k := range dnServer.ConnMap {
-                                            keys = append(keys, int(k))
+                                _, err := os.Stat(dest + ".json")
+                                if err == nil {
+                                    // File exists
+                                    returnMessage = "File " + dest + ".json" + " already exists"
+                                }else{
+                                    file, err := os.Create(dest + ".json")
+                                    if err != nil {
+                                        returnMessage = "Error creating file: " + err.Error()
+                                    } else {
+                                        defer file.Close()
+                                        fileSize, _ := strconv.Atoi(cmdArgs[2])
+                                        numBlocks := (fileSize + blockSize - 1) / blockSize
+                                        keysAndBlockIDs := make([][]uint64, numBlocks)
+                    
+                                        for i := 0; i < numBlocks; i++ {
+                                            // Generate an array of keys from the ConnMap
+                                            keys := make([]int, 0, len(dnServer.ConnMap))
+                                            for k := range dnServer.ConnMap {
+                                                keys = append(keys, int(k))
+                                            }
+                    
+                                            // Shuffle the keys array
+                                            rand.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
+                    
+                                            // Select the first 3 keys from the shuffled array
+                                            selectedDNID := keys[:3]
+                    
+                                            // Generate three random 56-bit block IDs for this block and its 2 replicas
+                                            blockIDs := make([]uint64, 3)
+                                            for j := 0; j < 3; j++ {
+                                                //generate random 56-bit block ID to append key(8 bit)
+                                                blockID := make([]byte, 8)
+                                                blockID[0] = byte(selectedDNID[j])
+                                                crand.Read(blockID[1:])
+                                                blockIDs[j] = binary.BigEndian.Uint64(blockID)
+                                            }
+                    
+                                            // Append these block IDs to the keys in the keyArray
+                                            keysAndBlockIDs[i] = append(keysAndBlockIDs[i], blockIDs...)
                                         }
-                
-                                        // Shuffle the keys array
-                                        rand.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
-                
-                                        // Select the first 3 keys from the shuffled array
-                                        selectedDNID := keys[:3]
-                
-                                        // Generate three random 56-bit block IDs for this block and its 2 replicas
-                                        blockIDs := make([]uint64, 3)
-                                        for j := 0; j < 3; j++ {
-                                            //generate random 56-bit block ID to append key(8 bit)
-                                            blockID := make([]byte, 8)
-                                            blockID[0] = byte(selectedDNID[j])
-                                            crand.Read(blockID[1:])
-                                            blockIDs[j] = binary.BigEndian.Uint64(blockID)
-                                        }
-                
-                                        // Append these block IDs to the keys in the keyArray
-                                        keysAndBlockIDs[i] = append(keysAndBlockIDs[i], blockIDs...)
-                                    }
-                                    blockList:=make([]byte,0)
-                                    for _, blocks := range keysAndBlockIDs {
-                                        for _, key := range blocks {
-                                            // Convert the key back to uint8
-                                            keyUint8 := uint8(key >> 56)
-                                    
-                                            // Get the IP from ConnMap using the key
-                                            ip, exists := dnServer.ConnMap[keyUint8]
-                                            if exists {
-                                                //fmt.Println("IP found for key", keyUint8, ":", ip.Conn.RemoteAddr().String())
+                                        blockList:=make([]byte,0)
+                                        for _, blocks := range keysAndBlockIDs {
+                                            for _, key := range blocks {
+                                                // Convert the key back to uint8
+                                                keyUint8 := uint8(key >> 56)
+                                        
+                                                // Get the IP from ConnMap using the key
+                                                ip, exists := dnServer.ConnMap[keyUint8]
+                                                if exists {
+                                                    // Parse the IP address to a net.IP
+                                                    ipAddr := net.ParseIP(strings.Split(ip.Conn.RemoteAddr().String(),":")[0])
+                                                    fmt.Println("IP:", ipAddr)
+                                                    // Convert the IP to a 4-byte representation
+                                                    ipBytes := ipAddr.To4()
+                                                    fmt.Println("IP bytes:", ipBytes)
 
-                                                byteBuffer := make([]byte,8)
-                                                binary.BigEndian.PutUint64(byteBuffer, key)
-                                                blockList = append(blockList, byteBuffer...)
-                                                ip := fmt.Sprintf("%s\n", ip.Conn.RemoteAddr().String())
-                                                blockList = append(blockList, []byte(ip)...)
-                                            } else {
-                                                fmt.Println("No IP found for key", keyUint8)
+                                                    // Convert the block ID to a byte slice
+                                                    blockIDBuffer := make([]byte, 8)
+                                                    binary.BigEndian.PutUint64(blockIDBuffer, key)
+
+                                                    // Append the IP bytes and block ID buffer
+                                                    ipAndBlockIDBuffer := append(ipBytes, blockIDBuffer...)
+
+                                                    // Append the combined buffer to the blockList
+                                                    blockList = append(blockList, ipAndBlockIDBuffer...)
+                                                } else {
+                                                    fmt.Println("No IP found for key", keyUint8)
+                                                }
                                             }
                                         }
-                                    }
-                                    fmt.Println("Blocklist:", blockList)
-                                    BlockListChan <- blockList
-                
-                                    fileData := FileData{
-                                        Filename: filepath.Base(dest),
-                                        Filesize: fileSize,
-                                        Blocks:   keysAndBlockIDs,
-                                    }
-                                    encoder := json.NewEncoder(file)
-                
-                                    // Write the file data to the file as JSON
-                                    err = encoder.Encode(fileData)
-                                    if err != nil {
-                                        returnMessage = "Error writing to file: " + err.Error()
-                                    } else {
-                                        returnMessage = "File stored successfully"
+                                        fmt.Println("Blocklist:", blockList)
+                                        go func() {
+                                            clientChan <- blockList
+                                        }()
+                    
+                                        fileData := FileData{
+                                            Filename: filepath.Base(dest),
+                                            Filesize: fileSize,
+                                            Blocks:   keysAndBlockIDs,
+                                        }
+                                        encoder := json.NewEncoder(file)
+                    
+                                        // Write the file data to the file as JSON
+                                        err = encoder.Encode(fileData)
+                                        if err != nil {
+                                            returnMessage = "Error writing to file: " + err.Error()
+                                        } else {
+                                            returnMessage = "Metadata stored successfully"
+                                        }
                                     }
                                 }
                             }
@@ -204,8 +236,11 @@ func handleNewClient(conn net.Conn) {
 
 
                 }
+                clientIDBytes := []byte{clientID}
                 byteBuffer := []byte(returnMessage)
+                byteBuffer = append(clientIDBytes, byteBuffer...)
                 conn.Write(byteBuffer)
+                fmt.Println("Sent message to client:", returnMessage)
             }
 
         }
