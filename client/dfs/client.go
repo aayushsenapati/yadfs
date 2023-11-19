@@ -138,7 +138,7 @@ func SendCmd(ip,port string) {
 					}
 					defer inputFile.Close()
 				
-					for i := 0; i < len(data); i += 12 {
+					for i := 0; i < len(data); i += (12*3) {
 						// Parse the IP and block ID from the data
 						ip := net.IP(data[i : i+4]).String()
 						blockid := binary.BigEndian.Uint64(data[i+4 : i+12])
@@ -169,6 +169,7 @@ func SendCmd(ip,port string) {
 						binary.BigEndian.PutUint64(headerBuf[3:], blockid)
 						binary.BigEndian.PutUint64(headerBuf[11:], uint64(f_size))
 						headerBuf[19] = byte(3)
+						headerBuf = append(headerBuf, data[i+12:i+36]...)
 				
 						_, err = conn3.Write(headerBuf)
 						if err != nil {
