@@ -15,6 +15,7 @@ import (
     "encoding/json"
     "encoding/binary"
     "bufio"
+    "bytes"
 )
 
 type Packet struct {
@@ -256,9 +257,61 @@ func handleNewClient(conn net.Conn) {
                             }
                         }
                     }
+                case "get":
+                    if len(cmdArgs) < 2 {
+                        returnMessage = "Usage: get destination source"
+                        break
+                    }
+
+                    src := "root/" + cmdArgs[1]
+                    _, err := os.Stat(src + ".json")
+                    if os.IsNotExist(err) {
+                        returnMessage = "Path does not exist"
+                        break
+                    }
+
+                    file, err := os.Open(src + ".json")
+                    if err != nil {
+                        returnMessage = "Error opening file: " + err.Error()
+                        break
+                    }
+                    // Create a bytes.Buffer to store the block IDs
+                    // Create a bytes.Buffer to store the block IDs and IP addresses
+                    var blockIDBuffer bytes.Buffer
+                    decoder := json.NewDecoder(file)
+                    var fileData FileData
+                    err = decoder.Decode(&fileData)
+                    if err != nil {
+                        returnMessage = "Error decoding file: " + err.Error()
+                        break
+                    }
+                    // Iterate over the Blocks field of the FileData object
+                    for _, block := range fileData.Blocks {
+                        for _, blockID := range block {
+                            // Check if the data node ID (the first byte of the block ID) exists in the dnServer.ConnMap
+                            dataNodeID := uint8(blockID >> 56)
+                            if dn, exists := dnServer.ConnMap[dataNodeID]; exists {
+                                // Get the IP address of the data node
+                                ip := dn.Conn.RemoteAddr().(*net.TCPAddr).IP
+
+                                // Write the IP address to the buffer
+                                blockIDBuffer.Write(ip.To4())
+
+                                // Write the block ID to the buffer
+                                binary.Write(&blockIDBuffer, binary.BigEndian, blockID)
+                                break
+                            }
+                        }
+                    }
+
+                    // Now you can use blockIDBuffer.Bytes() to get the block IDs and IP addresses as a byte slice
+                    blockListBuf := blockIDBuffer.Bytes()
+                    go func() {
+                        clientChan <- blockListBuf
+                    }()
 
 
-
+                    
 
                 }
                 clientIDBytes := []byte{clientID}

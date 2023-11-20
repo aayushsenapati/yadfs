@@ -5,6 +5,8 @@ import (
     "net"
     "encoding/binary"
     "os"
+    "bytes"
+    "io"
 )
 
 
@@ -30,7 +32,7 @@ func ClientListener(ip, port string) {
 
 
 func handleNewClient(conn net.Conn) {
-	fmt.Println("New client connected!")
+	fmt.Println("\n\n\n\n\n\n\n\n\n\nNew client connected!")
 	commandbuf:=make([]byte, 1024)
 	n,err:=conn.Read(commandbuf)
 	if err!=nil {
@@ -137,6 +139,61 @@ func handleNewClient(conn net.Conn) {
             fmt.Println("Error sending ack:", err)
         }
         fmt.Println("Put command completed!")
+
+    case "get":
+        // Parse the block ID from the command
+        blockID := binary.BigEndian.Uint64(commandbuf[3:])
+        if err != nil {
+            fmt.Println("Error parsing block ID:", err)
+            return
+        }
+    
+        // Open the block file
+        blockFile, err := os.Open(fmt.Sprintf("files/%d.bin", blockID))
+        if err != nil {
+            fmt.Println("Error opening block file:", err)
+            return
+        }
+        defer blockFile.Close()
+    
+        // Get the size of the block file
+        fileInfo, err := blockFile.Stat()
+        if err != nil {
+            fmt.Println("Error getting file info:", err)
+            return
+        }
+        size := fileInfo.Size()
+    
+        // Send the size of the block file
+        var sizeBuf bytes.Buffer
+        binary.Write(&sizeBuf, binary.BigEndian, size)
+        _, err = conn.Write(sizeBuf.Bytes())
+        if err != nil {
+            fmt.Println("Error sending file size:", err)
+            return
+        }
+    
+        // Wait for the ack
+        ackBuf := make([]byte, 3)
+        _, err = conn.Read(ackBuf)
+        if err != nil {
+            fmt.Println("Error reading ack:", err)
+            return
+        }
+    
+        // Check the ack
+        if string(ackBuf) != "ack" {
+            fmt.Println("Did not receive ack")
+            return
+        }
+    
+        // Send the block file
+        _, err = io.Copy(conn, blockFile)
+        if err != nil {
+            fmt.Println("Error sending block file:", err)
+            return
+        }
+
 	}
 
 }
