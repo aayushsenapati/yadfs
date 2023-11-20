@@ -41,7 +41,7 @@ func SendReport(ipString, portString string) {
 			}
 			fileExists = true
 		}
-        err := sendFile(conn, "blockreport.txt",id)
+        err := sendFile(conn, "blocklist.bin",id)
         if err != nil {
             fmt.Println("Error sending file:", err)
         }

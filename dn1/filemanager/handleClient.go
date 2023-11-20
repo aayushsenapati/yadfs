@@ -71,6 +71,19 @@ func handleNewClient(conn net.Conn) {
         }
         outputFile.Close()
 
+        // Append blockid to blocklist.bin
+        blockListFile, err := os.OpenFile("blocklist.bin", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+        if err != nil {
+            fmt.Println("Error opening blocklist file:", err)
+            return
+        }
+        err = binary.Write(blockListFile, binary.BigEndian, blockid)
+        if err != nil {
+            fmt.Println("Error writing to blocklist file:", err)
+            return
+        }
+        blockListFile.Close()
+
             // Send the file block to other data nodes
         for i := 0; i < int(replicationFactor); i++ {
             ip := net.IP(remainingBytes[i*12 : i*12+4]).String()
