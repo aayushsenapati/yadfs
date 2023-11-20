@@ -1,4 +1,2 @@
 docker-compose.yml
-dn1/files/*
-dn2
-dn3
+dn*
