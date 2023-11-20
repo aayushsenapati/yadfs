@@ -84,8 +84,17 @@ volumes:
 networks:
   my-network:
 ```
-- Save this as docker-compose.yml
-- 'run docker compose up'
-- for all container names:
-     in terminal execute 'docker exec -it {put container name here} /bin/ash'
-     in the alpine ash shell run 'apk add go'
+- run command: docker volume create yadfs
+- clone this repository into a folder
+- move contents of the above folder into this directory  `\\wsl.localhost\docker-desktop-data\data\docker\volumes` (paste this in file explorer to find it)
+- Save the above code as docker-compose.ymlanywhere in your computer.(preferably one folder for your yml files)
+- run command: `docker compose up` in the location of the above folder
+-
+  1. for all container names:
+     - in terminal execute 'docker exec -it {put container name here} /bin/ash'
+     - in the alpine ash shell run 'apk add go'
+  2. or in vscode download the docker extension -> do **ctrl/cmd +shift+p** and type **docker attach shell**
+      - attach the shells for the different containers in vs code
+      - in each shell run apk add go
+- in any one of the above shells run command: `chmod +x datanode.sh` and run `./datanode.sh dn1`, `./datanode.sh dn2`, `./datanode.sh dn3`
+- in the respective shells cd to nn,dn1,dn2,dn3 and run command `go run .`
