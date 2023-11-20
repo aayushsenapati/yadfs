@@ -58,6 +58,13 @@ func handleNewClient(conn net.Conn) {
             return
         }
 
+
+        // Create the files directory if it doesn't exist
+        err := os.MkdirAll("files", 0755)
+        if err != nil {
+            fmt.Println("Error creating files directory:", err)
+            return
+        }
         // Write the file block to disk
         outputFile, err := os.Create(fmt.Sprintf("files/%d.bin", blockid))
         if err != nil {
