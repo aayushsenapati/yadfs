@@ -87,7 +87,7 @@ networks:
 - run command: docker volume create yadfs
 - clone this repository into a folder
 - move contents of the above folder into this directory  `\\wsl.localhost\docker-desktop-data\data\docker\volumes` (paste this in file explorer to find it)
-- Save the above code as docker-compose.ymlanywhere in your computer.(preferably one folder for your yml files)
+- Save the above code as docker-compose.yml anywhere on your computer.(preferably one folder for your yml files)
 - run command: `docker compose up` in the location of the above folder
 -
   1. for all container names:
