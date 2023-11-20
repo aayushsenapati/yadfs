@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"sync"
 	"path/filepath"
+	"io/ioutil"
 
 )
 
@@ -28,11 +29,16 @@ func SendCmd(ip,port string) {
 	}else{
 		switch(argv[1]){
 		case "mkdir":
-			message := argv[1] + " " + argv[2]
-			fmt.Println("Sending message:", message)
+			// Read the current working directory from the pwd file
+			pwd, err := ioutil.ReadFile("pwd")
+			if err != nil {
+				fmt.Println("Error reading pwd file:", err)
+				os.Exit(1)
+			}
+			message := argv[1] + " " +string(pwd)+"/"+ argv[2]
 			byteBuffer := []byte(message)
 
-			_, err := conn.Write(byteBuffer)
+			_, err = conn.Write(byteBuffer)
 			if(err != nil){
 				fmt.Println("Error sending message:", err)
 				os.Exit(1)
@@ -56,8 +62,13 @@ func SendCmd(ip,port string) {
 			size := fileInfo.Size()
 
 			// Create the message
-			message := fmt.Sprintf("put %s %d", dest, size)
-			fmt.Println("Sending message:", message)
+			// Read the current working directory from the pwd file
+			pwd, err := ioutil.ReadFile("pwd")
+			if err != nil {
+				fmt.Println("Error reading pwd file:", err)
+				os.Exit(1)
+			}
+			message := fmt.Sprintf("put %s/%s %d", string(pwd),dest, size)
 			byteBuffer := []byte(message)
 
 			_, err = conn.Write(byteBuffer)
@@ -65,7 +76,6 @@ func SendCmd(ip,port string) {
 				fmt.Println("Error sending message:", err)
 				os.Exit(1)
 			}
-			fmt.Println("Sent command")
 			returnBuf := make([]byte, 1024)
 			n, err := conn.Read(returnBuf)
 			if err != nil {
@@ -74,7 +84,7 @@ func SendCmd(ip,port string) {
 			}
 			returnMessage := string(returnBuf[1:n])
 			myid:=uint8(returnBuf[0])
-			fmt.Println("Received message:", returnMessage)
+			fmt.Println(returnMessage)
 
 			wg.Add(1)
 
@@ -92,7 +102,6 @@ func SendCmd(ip,port string) {
 				var idbuf bytes.Buffer
 				idbuf.WriteByte(myid)
 				idbuf.WriteString("put")
-				fmt.Println(idbuf.Bytes()) // replace with your command
 
 				// Send the buffer over the connection
 				_, err = conn2.Write(idbuf.Bytes())
@@ -100,21 +109,18 @@ func SendCmd(ip,port string) {
 					fmt.Println("Error sending id and command:", err)
 					return
 				}
-				fmt.Println("Sent id and command")
 
 				headerBuf := make([]byte, 8)
 				_, err = conn2.Read(headerBuf)
 				if err != nil {
 					return 
 				}
-				fmt.Println("Received header:", headerBuf)
 
 				_,err=conn2.Write([]byte("ack"))
 				if err != nil {
 					fmt.Println("Error sending ack:", err)
 					return
 				}
-				fmt.Println("Sent ack")
 				
 
 
@@ -128,7 +134,6 @@ func SendCmd(ip,port string) {
 					fmt.Println("Error copying data:", err)
 					return
 				}
-				fmt.Println("Received data:", buf.Bytes())
 				// Convert the buffer to a string
 				data := buf.Bytes()
 				func() {
@@ -163,7 +168,6 @@ func SendCmd(ip,port string) {
 							return
 						}
 						defer conn3.Close()
-						fmt.Println("Connected to server")
 						headerBuf := make([]byte, 3+8+8+1)
 						copy(headerBuf[:3], []byte("put"))
 						binary.BigEndian.PutUint64(headerBuf[3:], blockid)
@@ -184,18 +188,17 @@ func SendCmd(ip,port string) {
 							fmt.Println("Error reading:", err)
 							return
 						}
-						fmt.Println("Received ack:", ackBuf)
 						if string(ackBuf) != "ack" {
 							fmt.Println("Error receiving ack")
 							return
 						}
-						fmt.Println("\n\n\n\n\n\n\n",len(blockbuffer[:f_size]))
+
 						_,err=conn3.Write(blockbuffer[:f_size])
 						if err != nil {
 							fmt.Println("Error sending block:", err)
 							return
 						}
-						fmt.Println("Sent block")
+
 
 						// Read the response
 						responseBuf := make([]byte, 3)
@@ -208,11 +211,11 @@ func SendCmd(ip,port string) {
 							fmt.Println("Error receiving ack")
 							return
 						}
-						fmt.Println("file stored successfully")
 					}
 					return
-				}()
-
+					}()
+					
+				fmt.Println("file stored successfully")
 				wg.Done()
 			}()
 			wg.Wait()
@@ -242,9 +245,15 @@ func SendCmd(ip,port string) {
 			}
 
 
+			// Read the current working directory from the pwd file
+			pwd, err := ioutil.ReadFile("pwd")
+			if err != nil {
+				fmt.Println("Error reading pwd file:", err)
+				os.Exit(1)
+			}
+
 			// Create the message
-			message := fmt.Sprintf("get %s", src)
-			fmt.Println("Sending message:", message)
+			message := fmt.Sprintf("get %s/%s",string(pwd) ,src)
 			byteBuffer := []byte(message)
 
 			_, err = conn.Write(byteBuffer)
@@ -252,7 +261,6 @@ func SendCmd(ip,port string) {
 				fmt.Println("Error sending message:", err)
 				os.Exit(1)
 			}
-			fmt.Println("Sent command")
 			returnBuf := make([]byte, 1024)
 			n, err := conn.Read(returnBuf)
 			if err != nil {
@@ -261,7 +269,7 @@ func SendCmd(ip,port string) {
 			}
 			returnMessage := string(returnBuf[1:n])
 			myid:=uint8(returnBuf[0])
-			fmt.Println("Received message:", returnMessage)
+			fmt.Println(returnMessage)
 
 			wg.Add(1)
 
@@ -279,7 +287,6 @@ func SendCmd(ip,port string) {
 				var idbuf bytes.Buffer
 				idbuf.WriteByte(myid)
 				idbuf.WriteString("get")
-				fmt.Println(idbuf.Bytes()) // replace with your command
 
 				// Send the buffer over the connection
 				_, err = conn2.Write(idbuf.Bytes())
@@ -287,21 +294,18 @@ func SendCmd(ip,port string) {
 					fmt.Println("Error sending id and command:", err)
 					return
 				}
-				fmt.Println("Sent id and command")
 
 				headerBuf := make([]byte, 8)
 				_, err = conn2.Read(headerBuf)
 				if err != nil {
 					return 
 				}
-				fmt.Println("Received header:", headerBuf)
 
 				_,err=conn2.Write([]byte("ack"))
 				if err != nil {
 					fmt.Println("Error sending ack:", err)
 					return
 				}
-				fmt.Println("Sent ack")
 				
 
 
@@ -315,7 +319,6 @@ func SendCmd(ip,port string) {
 					fmt.Println("Error copying data:", err)
 					return
 				}
-				fmt.Println("Received data:", buf.Bytes())
 				// Convert the buffer to a string
 				data := buf.Bytes()
 				func() {
@@ -371,22 +374,94 @@ func SendCmd(ip,port string) {
 
 					}
 				}()
-
+				fmt.Println("file retrieved successfully")
 				wg.Done()
 			}()
 			wg.Wait()
 
 		case "rm":
-			message := argv[1] + " " + argv[2]
-			fmt.Println("Sending message:", message)
+			// Read the current working directory from the pwd file
+			pwd, err := ioutil.ReadFile("pwd")
+			if err != nil {
+				fmt.Println("Error reading pwd file:", err)
+				os.Exit(1)
+			}
+			message := argv[1] + " " + string(pwd)+"/"+argv[2]
 			byteBuffer := []byte(message)
 
-			_, err := conn.Write(byteBuffer)
+			_, err = conn.Write(byteBuffer)
 			if(err != nil){
 				fmt.Println("Error sending message:", err)
 				os.Exit(1)
 			}
 
+		case "ls":
+			// Read the current working directory from the pwd file
+			pwd, err := ioutil.ReadFile("pwd")
+			if err != nil {
+				fmt.Println("Error reading pwd file:", err)
+				os.Exit(1)
+			}
+
+			message := argv[1]+" "+string(pwd)
+			byteBuffer := []byte(message)
+
+			_, err = conn.Write(byteBuffer)
+			if(err != nil){
+				os.Exit(1)
+			}
+			buf := make([]byte, 10240)
+			n, err := conn.Read(buf)
+			if err != nil {
+				fmt.Println("Error reading size:", err)
+				return
+			}
+			
+			fmt.Println(string(buf[1:n]))
+
+		case "cd":
+
+			if len(argv) < 3 {
+				fmt.Println("Usage: cd directory")
+				os.Exit(1)
+			}
+
+
+
+			// Read the current working directory from the pwd file
+			pwd, err := ioutil.ReadFile("pwd")
+			if err != nil {
+				fmt.Println("Error reading pwd file:", err)
+				os.Exit(1)
+			}
+		
+			// Create the message
+			message := fmt.Sprintf("%s %s/%s", argv[1], string(pwd), argv[2])
+			byteBuffer := []byte(message)
+			_, err = conn.Write(byteBuffer)
+			if err != nil {
+				fmt.Println("Error sending message:", err)
+				os.Exit(1)
+			}
+
+			returnBuf := make([]byte, 1024)
+			n, err := conn.Read(returnBuf)
+			if err != nil {
+				fmt.Println("Error reading:", err)
+				return
+			}
+			returnMessage := string(returnBuf[1:n])
+
+			//if it starts with \0 then it is an error
+			if(int(returnBuf[0]) == 0){
+				fmt.Println("Error: Directory not found")
+				return
+			}
+			//do ioutil write
+			ioutil.WriteFile("pwd", []byte(returnMessage), 0644)
+
+
+		
 		}
 	}
 }

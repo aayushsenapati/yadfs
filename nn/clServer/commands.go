@@ -73,7 +73,7 @@ func handleNewClient(conn net.Conn) {
     var clientID uint8
     ClientChanMapMutex.Lock()
     for {
-        clientID = uint8(rand.Intn(256))
+        clientID = 1+uint8(rand.Intn(255))
         if _, exists := ClientChanMap[clientID]; !exists {
             break
         }
@@ -395,6 +395,60 @@ func handleNewClient(conn net.Conn) {
                     }
 
                     
+                case "ls":
+                    if len(cmdArgs) < 2 {
+                        returnMessage = "Usage: ls destination"
+                        break
+                    }
+                    path := "root" + cmdArgs[1]
+                    // Read the directory
+                    files, err := ioutil.ReadDir(path)
+                    if err != nil {
+                        returnMessage = "Error reading directory: " + err.Error()
+                        break
+                    }
+
+                    // Process the filenames
+                    var filenames []string
+                    for _, file := range files {
+                        filename := file.Name()
+                        if strings.HasSuffix(filename, ".json") {
+                            // Remove the .json extension
+                            filename = strings.TrimSuffix(filename, ".json")
+                        }
+                        filenames = append(filenames, filename)
+                    }
+
+                    // Join the filenames into a single string
+                    returnMessage = strings.Join(filenames, "\n")
+
+                case "cd":
+                    if len(cmdArgs) < 2 {
+                        returnMessage = "Usage: cd destination"
+                        break
+                    }
+                    path := "root"+"/"+cmdArgs[1]
+                    // Check if the path exists
+                    fileInfo, err := os.Stat(path)
+                    if os.IsNotExist(err) {
+                        clientID=0
+                        returnMessage = "Path does not exist"
+                        break
+                    }
+                    if !fileInfo.IsDir() {
+                        clientID=0
+                        returnMessage = "Path is not a directory"
+                        break
+                    }
+
+                    returnMessage="/"+cmdArgs[1]
+
+
+                    
+
+
+                    
+
 
                 }
                 clientIDBytes := []byte{clientID}
