@@ -20,16 +20,10 @@ func receiveFile(conn net.Conn) error {
     }
 
     id := uint8(headerBuf[0])
-    //header := string(headerBuf[1:n])
-    //fileSizeStr:=strings.Split(header,":")[1]
-    //fileSize, err := strconv.Atoi(fileSizeStr)
-    //if err != nil {
-    //    return err
-    //}
-    var buf bytes.Buffer
+
     fileSize:=binary.BigEndian.Uint64(headerBuf[1:])
     var reportBuf bytes.Buffer
-    _, err = io.CopyN(&buf, conn, int64(fileSize))
+    _, err = io.CopyN(&reportBuf, conn, int64(fileSize))
     if err != nil {
         return err
     }
@@ -47,7 +41,6 @@ func receiveFile(conn net.Conn) error {
 
     sort.Slice(logSlice, func(i, j int) bool { return logSlice[i] < logSlice[j] })
     sort.Slice(reportSlice, func(i, j int) bool { return reportSlice[i] < reportSlice[j] })
-
     diffBuf := uint64SliceToByteSliceBE(findDifferences(reportSlice, logSlice))
 
     // Send the size of the differences slice
