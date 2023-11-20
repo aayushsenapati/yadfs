@@ -7,6 +7,7 @@ import (
     "time"
 	"io"
     "encoding/binary"
+    "io/ioutil"
 )
 
 
@@ -67,10 +68,6 @@ func sendFile(conn net.Conn, filePath string,id uint8) error {
     header:=make([]byte,9)
     header[0]=byte(id)
     binary.BigEndian.PutUint64(header[1:],uint64(fileInfo.Size()))
-    //header := fmt.Sprintf("blockreport:%d", fileInfo.Size())
-	//byteBuffer:=make([]byte, len(header)+1)
-	//byteBuffer[0]=byte(id)
-	//copy(byteBuffer[1:], []byte(header))
     _, err = conn.Write(header)
     if err != nil {
         return err
@@ -81,6 +78,76 @@ func sendFile(conn net.Conn, filePath string,id uint8) error {
     if err != nil {
         return err
     }
+
+    // Receive the file size
+    sizeBuf := make([]byte, 8)
+    _, err = conn.Read(sizeBuf)
+    if err != nil {
+        fmt.Println("Error receiving size:", err)
+        return err
+    }
+    conn.Write([]byte("ack"))
+
+    fileSize := binary.BigEndian.Uint64(sizeBuf)
+
+    // Retrieve the buffer
+    buffer := make([]byte, fileSize)
+    _, err = conn.Read(buffer)
+    fmt.Println("\n\n\n\n\n\n\nReceived buffer:", buffer)
+    if err != nil {
+        fmt.Println("Error receiving buffer:", err)
+        return err
+    }
+
+    // Traverse the buffer
+    for i := 0; i < len(buffer); i += 8 {
+        // Convert each 8 bytes to a uint64
+        id := binary.BigEndian.Uint64(buffer[i : i+8])
+
+        // Delete the .bin file with the matching name
+        err := os.Remove(fmt.Sprintf("files/%d.bin", id))
+        if err != nil {
+            fmt.Println("Error deleting file:", err)
+            continue
+        }
+        // Read the blocklist.bin file into a slice
+        blocklist, err := ioutil.ReadFile("blocklist.bin")
+        if err != nil {
+            fmt.Println("Error reading blocklist:", err)
+            return err
+        }
+
+        // Convert the blocklist to a slice of uint64
+        blocklistUint64 := make([]uint64, len(blocklist)/8)
+        for j := range blocklistUint64 {
+            blocklistUint64[j] = binary.BigEndian.Uint64(blocklist[j*8 : (j+1)*8])
+        }
+
+        // Remove the id from the blocklist
+        for j, blockId := range blocklistUint64 {
+            if blockId == id {
+                blocklistUint64 = append(blocklistUint64[:j], blocklistUint64[j+1:]...)
+                break
+            }
+        }
+
+        // Convert the blocklist back to a slice of bytes
+        blocklist = make([]byte, len(blocklistUint64)*8)
+        for j, blockId := range blocklistUint64 {
+            binary.BigEndian.PutUint64(blocklist[j*8:(j+1)*8], blockId)
+        }
+
+        // Write the blocklist back to the file
+        err = ioutil.WriteFile("blocklist.bin", blocklist, 0644)
+        if err != nil {
+            fmt.Println("Error writing blocklist:", err)
+            return err
+        }
+    }
+
+
+
+    
 
     fmt.Println("File sent successfully.")
     return nil

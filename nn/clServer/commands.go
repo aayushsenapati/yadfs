@@ -15,7 +15,6 @@ import (
     "encoding/json"
     "encoding/binary"
     "bufio"
-    "io"
 )
 
 type Packet struct {

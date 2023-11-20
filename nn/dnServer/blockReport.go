@@ -3,10 +3,12 @@ package dnServer
 import (
     "fmt"
     "net"
-    "os"
-    "io"
     "strconv"
     "encoding/binary"
+    "sort"
+    "bytes"
+    "io/ioutil"
+    "io"
 )
 
 func receiveFile(conn net.Conn) error {
@@ -24,33 +26,94 @@ func receiveFile(conn net.Conn) error {
     //if err != nil {
     //    return err
     //}
+    var buf bytes.Buffer
     fileSize:=binary.BigEndian.Uint64(headerBuf[1:])
-    
-
-    
-
-    // Create the directory if it doesn't exist
-    err = os.MkdirAll("blockreports", 0755)
-    if err != nil {
-        fmt.Println("Error creating directory:", err)
-        return err
-    }
-    // Create a new file for writing
-    file, err := os.Create("blockreports/" + strconv.Itoa(int(id)))
-    if err != nil {
-        fmt.Println("Error creating file:", err)
-        return err
-    }
-    defer file.Close()
-
-    // Copy data from the connection to the file
-    _, err = io.CopyN(file, conn, int64(fileSize))
+    var reportBuf bytes.Buffer
+    _, err = io.CopyN(&buf, conn, int64(fileSize))
     if err != nil {
         return err
     }
+    //read the block log from blocklog/id.bin and stor in buffer
+    var logBuf bytes.Buffer
+    log,err:=ioutil.ReadFile("blocklogs/"+strconv.Itoa(int(id))+".bin")
+    if err != nil {
+            fmt.Println("Error reading file:", err)
+            return err
+    }
+    logBuf.Write(log)
+
+    reportSlice := byteSliceToUint64SliceBE(reportBuf.Bytes())
+    logSlice := byteSliceToUint64SliceBE(logBuf.Bytes())
+
+    sort.Slice(logSlice, func(i, j int) bool { return logSlice[i] < logSlice[j] })
+    sort.Slice(reportSlice, func(i, j int) bool { return reportSlice[i] < reportSlice[j] })
+
+    diffBuf := uint64SliceToByteSliceBE(findDifferences(reportSlice, logSlice))
+
+    // Send the size of the differences slice
+    sizeBuf := make([]byte, 8)
+    binary.BigEndian.PutUint64(sizeBuf, uint64(len(diffBuf)))
+    _, err = conn.Write(sizeBuf)
+    if err != nil {
+        fmt.Println("Error sending size:", err)
+        return err
+    }
+    conn.Read(make([]byte, 3))
+    // Send the differences slice
+    fmt.Println("Sending differences:", diffBuf)
+    _, err = conn.Write(diffBuf)
+    if err != nil {
+        fmt.Println("Error sending differences:", err)
+        return err
+    }
+
 
     fmt.Println("File received successfully.")
     return nil
+}
+
+
+
+func uint64SliceToByteSliceBE(slice []uint64) []byte {
+    buffer := make([]byte, len(slice)*8)
+    for i, v := range slice {
+        binary.BigEndian.PutUint64(buffer[i*8:(i+1)*8], v)
+    }
+    return buffer
+}
+
+
+func byteSliceToUint64SliceBE(buffer []byte) []uint64 {
+    slice := make([]uint64, len(buffer)/8)
+    for i := 0; i < len(slice); i++ {
+        slice[i] = binary.BigEndian.Uint64(buffer[i*8 : (i+1)*8])
+    }
+    return slice
+}
+
+func findDifferences(slice1, slice2 []uint64) []uint64 {
+    var differences []uint64
+
+    i, j := 0, 0
+    for i < len(slice1) && j < len(slice2) {
+        if slice1[i] < slice2[j] {
+            differences = append(differences, slice1[i])
+            i++
+        } else if slice1[i] > slice2[j] {
+            j++
+        } else {
+            i++
+            j++
+        }
+    }
+
+    // Append remaining elements from slice1
+    for i < len(slice1) {
+        differences = append(differences, slice1[i])
+        i++
+    }
+
+    return differences
 }
 
 
