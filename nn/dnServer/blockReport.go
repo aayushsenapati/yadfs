@@ -6,24 +6,27 @@ import (
     "os"
     "io"
     "strconv"
-    "strings"
+    "encoding/binary"
 )
 
 func receiveFile(conn net.Conn) error {
     // Read the header containing the file name and size
-    headerBuf := make([]byte, 1024)
-    n, err := conn.Read(headerBuf)
+    headerBuf := make([]byte, 9)
+    _, err := conn.Read(headerBuf)
     if err != nil {
         return err
     }
 
     id := uint8(headerBuf[0])
-    header := string(headerBuf[1:n])
-    fileSizeStr:=strings.Split(header,":")[1]
-    fileSize, err := strconv.Atoi(fileSizeStr)
-    if err != nil {
-        return err
-    }
+    //header := string(headerBuf[1:n])
+    //fileSizeStr:=strings.Split(header,":")[1]
+    //fileSize, err := strconv.Atoi(fileSizeStr)
+    //if err != nil {
+    //    return err
+    //}
+    fileSize:=binary.BigEndian.Uint64(headerBuf[1:])
+    
+
     
 
     // Create the directory if it doesn't exist

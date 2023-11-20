@@ -15,6 +15,7 @@ import (
     "encoding/json"
     "encoding/binary"
     "bufio"
+    "io"
 )
 
 type Packet struct {
@@ -172,8 +173,8 @@ func handleNewClient(conn net.Conn) {
                                                 blockID := make([]byte, 8)
                                                 blockID[0] = byte(selectedDNID[j])
                                                 crand.Read(blockID[1:])
-                                                /*----------------------------check if blockid is there in blocklog if it is there generate new crand------------------*/
-                                                filename:=fmt.Sprintf("blocklogs/%d.bin",selectedDNID[j])
+                                                // Check if block ID is there in blocklog, if it is there generate new crand
+                                                filename := fmt.Sprintf("blocklogs/%d.bin", selectedDNID[j])
                                                 blockLog, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
                                                 if err != nil {
                                                     fmt.Println("Error opening blocklog:", err)
@@ -187,20 +188,13 @@ func handleNewClient(conn net.Conn) {
                                                         crand.Read(blockID[1:])
                                                     }
                                                 }
-                                                fmt.Println("Block ID:", binary.BigEndian.Uint64(blockID))
-                                                /*-----------------------------------add blockIds[j] to blocklog------------------------------------------------*/
-                                                
-                                                
-                                                if err != nil {
-                                                    fmt.Println("Error opening blocklog:", err)
-                                                    return
-                                                }
                                                 _, err = blockLog.Write(blockID)
                                                 if err != nil {
                                                     fmt.Println("Error writing to blocklog:", err)
                                                     return
                                                 }
                                                 blockLog.Close()
+
                                                 blockIDs[j] = binary.BigEndian.Uint64(blockID)
                                             }
                                             
