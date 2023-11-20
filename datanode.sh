@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/ash
 
 # Check if at least one argument is provided
 if [ $# -lt 1 ]; then
@@ -22,11 +22,14 @@ mkdir "$directory_name"
 if [ $? -eq 0 ]; then
     echo "Directory '$directory_name' created successfully."
 
+    # Get the current working directory
+    current_directory=$(pwd)
+
     # Create symbolic links
-    ln -s _dn/maintenance "$directory_name/maintenance"
-    ln -s _dn/filemanager "$directory_name/filemanager"
-    ln -s _dn/main.go "$directory_name/main.go"
-    ln -s _dn/go.mod "$directory_name/go.mod"
+    ln -s "$current_directory/_dn/maintenance/" "$directory_name/maintenance"
+    ln -s "$current_directory/_dn/filemanager/" "$directory_name/filemanager"
+    ln -s "$current_directory/_dn/main.go" "$directory_name/main.go"
+    ln -s "$current_directory/_dn/go.mod" "$directory_name/go.mod"
 
     echo "Symbolic links created successfully."
 else
