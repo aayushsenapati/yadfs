@@ -17,6 +17,7 @@ import (
     "bufio"
     "bytes"
     "io/ioutil"
+    "sort"
 )
 
 type Packet struct {
@@ -341,57 +342,51 @@ func handleNewClient(conn net.Conn) {
                         returnMessage = "Error decoding file: " + err.Error()
                         break
                     }
-                    fmt.Println("\n\n\n\n\nFile data:", fileData.Blocks)
-                    // Iterate over the Blocks field of the FileData object
-                    for _, block := range fileData.Blocks {
-                        for _, blockID := range block {
-                            // Get the data node ID (the first byte of the block ID)
-                            dataNodeID := uint8(blockID >> 56)
-                
-                            // Open the data node file
-                            dnFile, err := os.OpenFile(fmt.Sprintf("blocklogs/%d.bin", dataNodeID), os.O_RDWR, 0644)
-                            if err != nil {
-                                returnMessage = "Error opening data node file: " + err.Error()
-                                break
-                            }
-                
-                            // Read the data node file into a byte slice
-                            dnData, err := ioutil.ReadAll(dnFile)
-                            if err != nil {
-                                returnMessage = "Error reading data node file: " + err.Error()
-                                break
-                            }
-                
-                            // Convert the byte slice to a uint64 slice
-                            dnBlockIDs := make([]uint64, len(dnData)/8)
-                            for i := range dnBlockIDs {
-                                dnBlockIDs[i] = binary.BigEndian.Uint64(dnData[i*8 : (i+1)*8])
-                            }
-                
-                            // Remove the block ID from the slice
-                            for i, dnBlockID := range dnBlockIDs {
-                                if dnBlockID == blockID {
-                                    dnBlockIDs = append(dnBlockIDs[:i], dnBlockIDs[i+1:]...)
-                                    break
-                                }
-                            }
-                            //fmt.Println("\n\n\n\n\nbefore delete", dnBlockIDs)
-                            // Convert the uint64 slice back to a byte slice
-                            dnData = make([]byte, len(dnBlockIDs)*8)
-                            for i, dnBlockID := range dnBlockIDs {
-                                binary.BigEndian.PutUint64(dnData[i*8:(i+1)*8], dnBlockID)
-                            }
-                
-                            // Write the byte slice back to the data node file
-                            _, err = dnFile.WriteAt(dnData, 0)
-                            if err != nil {
-                                returnMessage = "Error writing to data node file: " + err.Error()
-                                break
-                            }
-                            dnFile.Close()
+                    
+                    // Iterate over the Blocks field of the FileData object and classify them based on their first bytes
+                    // Initialize the map
+                    blockGroups := make(map[uint8][]uint64)
+
+                    // Iterate over the blocks
+                    for _, blockArray := range fileData.Blocks {
+                        for _, blockID := range blockArray {
+                            // Get the first byte
+                            firstByte := uint8(blockID >> 56)
+
+                            // Add the block ID to the corresponding slice in the map
+                            blockGroups[firstByte] = append(blockGroups[firstByte], blockID)
                         }
                     }
-                
+
+                    // Convert the map into a 2D array
+                    var groupedBlocks [][]uint64
+                    for _, blockIDs := range blockGroups {
+                        groupedBlocks = append(groupedBlocks, blockIDs)
+                    }
+                    //iterate over the grouped blocks and open the blocklog of each block based on id
+
+                    for _, blockArray := range groupedBlocks {
+                        dnID:=uint8(blockArray[0]>>56)
+                        filename := fmt.Sprintf("blocklogs/%d.bin", dnID)
+                        blockLog,err:=ioutil.ReadFile(filename)
+                        if err != nil {
+                            returnMessage = "Error reading file: " + err.Error()
+                            break
+                        }
+                        blockLogSlice := byteSliceToUint64SliceBE(blockLog)
+                        sort.Slice(blockLogSlice, func(i, j int) bool { return blockLogSlice[i] < blockLogSlice[j] })
+                        sort.Slice(blockArray, func(i, j int) bool { return blockArray[i] < blockArray[j] })
+                        diffBuf := uint64SliceToByteSliceBE(findDifferences(blockLogSlice, blockArray))
+                        ioutil.WriteFile(filename, diffBuf, 0644)
+                        
+                    }
+                           
+                    
+
+
+
+
+
                     // Delete the file
                     err = os.Remove(filepath)
                     if err != nil {
@@ -413,6 +408,49 @@ func handleNewClient(conn net.Conn) {
 
     }
 
+}
+
+
+func uint64SliceToByteSliceBE(slice []uint64) []byte {
+    buffer := make([]byte, len(slice)*8)
+    for i, v := range slice {
+        binary.BigEndian.PutUint64(buffer[i*8:(i+1)*8], v)
+    }
+    return buffer
+}
+
+
+func byteSliceToUint64SliceBE(buffer []byte) []uint64 {
+    slice := make([]uint64, len(buffer)/8)
+    for i := 0; i < len(slice); i++ {
+        slice[i] = binary.BigEndian.Uint64(buffer[i*8 : (i+1)*8])
+    }
+    return slice
+}
+
+func findDifferences(slice1, slice2 []uint64) []uint64 {
+    var differences []uint64
+
+    i, j := 0, 0
+    for i < len(slice1) && j < len(slice2) {
+        if slice1[i] < slice2[j] {
+            differences = append(differences, slice1[i])
+            i++
+        } else if slice1[i] > slice2[j] {
+            j++
+        } else {
+            i++
+            j++
+        }
+    }
+
+    // Append remaining elements from slice1
+    for i < len(slice1) {
+        differences = append(differences, slice1[i])
+        i++
+    }
+
+    return differences
 }
 
 func receTCP(conn net.Conn, dataPipe chan Packet) {

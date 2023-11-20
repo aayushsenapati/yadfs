@@ -8,17 +8,8 @@ import (
 	"io"
     "encoding/binary"
     "io/ioutil"
+    "sort"
 )
-
-
-/* func readIDFromFile(filename string) (uint64, error) {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return 0, err
-	}
-	id := binary.BigEndian.Uint64(data)
-	return id, nil
-} */
 
 
 
@@ -100,57 +91,47 @@ func sendFile(conn net.Conn, filePath string,id uint8) error {
     // Retrieve the buffer
     buffer := make([]byte, fileSize)
     _, err = conn.Read(buffer)
-    fmt.Println("\n\n\n\n\n\n\nReceived buffer:", buffer)
     if err != nil {
         fmt.Println("Error receiving buffer:", err)
         return err
     }
 
-    // Traverse the buffer
-    for i := 0; i < len(buffer); i += 8 {
-        // Convert each 8 bytes to a uint64
-        id := binary.BigEndian.Uint64(buffer[i : i+8])
+    // Convert the buffer to a slice of uint64
+    bufferUint64 := byteSliceToUint64SliceBE(buffer)
 
-        // Delete the .bin file with the matching name
-        err := os.Remove(fmt.Sprintf("files/%d.bin", id))
-        if err != nil {
-            fmt.Println("Error deleting file:", err)
-            continue
-        }
-        // Read the blocklist.bin file into a slice
-        blocklist, err := ioutil.ReadFile("blocklist.bin")
-        if err != nil {
-            fmt.Println("Error reading blocklist:", err)
-            return err
-        }
+    //traverse the buffer and remove the id.bin from files directory
 
-        // Convert the blocklist to a slice of uint64
-        blocklistUint64 := make([]uint64, len(blocklist)/8)
-        for j := range blocklistUint64 {
-            blocklistUint64[j] = binary.BigEndian.Uint64(blocklist[j*8 : (j+1)*8])
-        }
-
-        // Remove the id from the blocklist
-        for j, blockId := range blocklistUint64 {
-            if blockId == id {
-                blocklistUint64 = append(blocklistUint64[:j], blocklistUint64[j+1:]...)
-                break
-            }
-        }
-
-        // Convert the blocklist back to a slice of bytes
-        blocklist = make([]byte, len(blocklistUint64)*8)
-        for j, blockId := range blocklistUint64 {
-            binary.BigEndian.PutUint64(blocklist[j*8:(j+1)*8], blockId)
-        }
-
-        // Write the blocklist back to the file
-        err = ioutil.WriteFile("blocklist.bin", blocklist, 0644)
-        if err != nil {
-            fmt.Println("Error writing blocklist:", err)
-            return err
-        }
+    for i:=0;i<len(bufferUint64);i++{
+        os.Remove(fmt.Sprintf("files/%d.bin",bufferUint64[i]))
     }
+
+    //read blocklist.bin
+    blocklist, err := ioutil.ReadFile("blocklist.bin")
+    if err != nil {
+        fmt.Println("Error reading blocklist:", err)
+        return err
+    }
+
+    // Convert the blocklist to a slice of uint64
+    blocklistUint64 := byteSliceToUint64SliceBE(blocklist)
+
+    //sort the slices
+    sort.Slice(bufferUint64, func(i, j int) bool { return bufferUint64[i] < bufferUint64[j] })
+    sort.Slice(blocklistUint64, func(i, j int) bool { return blocklistUint64[i] < blocklistUint64[j] })
+
+    //find the differences
+    differences := findDifferences(blocklistUint64,bufferUint64)
+
+    //convert the differences to a byte slice
+    differencesByteSlice := uint64SliceToByteSliceBE(differences)
+
+    //write it back to blocklist.bin
+    err = ioutil.WriteFile("blocklist.bin", differencesByteSlice, 0644)
+    if err != nil {
+        fmt.Println("Error writing blocklist:", err)
+        return err
+    }
+
 
 
 
@@ -162,15 +143,45 @@ func sendFile(conn net.Conn, filePath string,id uint8) error {
 
 
 
+func uint64SliceToByteSliceBE(slice []uint64) []byte {
+    buffer := make([]byte, len(slice)*8)
+    for i, v := range slice {
+        binary.BigEndian.PutUint64(buffer[i*8:(i+1)*8], v)
+    }
+    return buffer
+}
 
-/* func receTCP(conn net.Conn, dataPipe chan Packet) {
-	buf := make([]byte, 1024)
-	for {
-		n, err := conn.Read(buf)
-		if err != nil {
-			fmt.Println("Error reading:", err)
-			return
-		}
-		dataPipe <- Packet{data: buf[:n], addr: conn.RemoteAddr()}
-	}
-} */
+
+func byteSliceToUint64SliceBE(buffer []byte) []uint64 {
+    slice := make([]uint64, len(buffer)/8)
+    for i := 0; i < len(slice); i++ {
+        slice[i] = binary.BigEndian.Uint64(buffer[i*8 : (i+1)*8])
+    }
+    return slice
+}
+
+func findDifferences(slice1, slice2 []uint64) []uint64 {
+    var differences []uint64
+
+    i, j := 0, 0
+    for i < len(slice1) && j < len(slice2) {
+        if slice1[i] < slice2[j] {
+            differences = append(differences, slice1[i])
+            i++
+        } else if slice1[i] > slice2[j] {
+            j++
+        } else {
+            // Skip common elements
+            i++
+            j++
+        }
+    }
+
+    // Append remaining elements from slice1
+    for i < len(slice1) {
+        differences = append(differences, slice1[i])
+        i++
+    }
+
+    return differences
+}
