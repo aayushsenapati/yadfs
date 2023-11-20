@@ -4,10 +4,11 @@ import (
     "dn/maintenance"
     "sync"
     "dn/filemanager"
+    "os"
 )
 
 func main() {
-    ipString:="nn-container-devel"
+    ipString:=os.Getenv("NN_CONTAINER_NAME")
     var wg sync.WaitGroup
 
     wg.Add(3) // Add 2 because we have 2 goroutines
@@ -23,7 +24,7 @@ func main() {
     }()
 
     go func() {
-        filemanager.ClientListener("dn1-container-devel","3200") // Launch a goroutine
+        filemanager.ClientListener(os.Getenv("CONTAINER_NAME"),"3200") // Launch a goroutine
         wg.Done() // Call Done when the function returns
     }()
 

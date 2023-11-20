@@ -12,9 +12,11 @@ services:
     networks:
       - my-network
     volumes:
-      - type: bind
-        source: "{source directory to mount}"
+      - type: volume
+        source: mount
         target: /data
+    environment:
+      - CONTAINER_NAME=nn-container-devel
     tty: true
 
   dn1-container:
@@ -23,9 +25,12 @@ services:
     networks:
       - my-network
     volumes:
-      - type: bind
-        source: "{source directory to mount}"
+      - type: volume
+        source: mount
         target: /data
+    environment:
+      - CONTAINER_NAME=dn1-container-devel
+      - NN_CONTAINER_NAME=nn-container-devel
     tty: true
 
   dn2-container:
@@ -34,9 +39,13 @@ services:
     networks:
       - my-network
     volumes:
-      - type: bind
-        source: "{source directory to mount}"
+      - type: volume
+        source: mount
         target: /data
+    environment:
+      - CONTAINER_NAME=dn2-container-devel
+      - NN_CONTAINER_NAME=nn-container-devel
+      
     tty: true
 
   dn3-container:
@@ -45,9 +54,12 @@ services:
     networks:
       - my-network
     volumes:
-      - type: bind
-        source: "{source directory to mount}"
+      - type: volume
+        source: mount
         target: /data
+    environment:
+      - CONTAINER_NAME=dn3-container-devel
+      - NN_CONTAINER_NAME=nn-container-devel
     tty: true
 
   client-container:
@@ -56,10 +68,19 @@ services:
     networks:
       - my-network
     volumes:
-      - type: bind
-        source: "{source directory to mount}"
+      - type: volume
+        source: mount
         target: /data
+    environment:
+      - CONTAINER_NAME=client-container-devel
+      - NN_CONTAINER_NAME=nn-container-devel
     tty: true
+
+volumes:
+  mount:
+    external: true
+    name: yadfs
+  
 networks:
   my-network:
 ```

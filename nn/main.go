@@ -5,10 +5,11 @@ import (
     "nn/clServer"
     "fmt"
     "sync"
+    "os"
 )
 
 func main() {
-    ipString:="nn-container-devel"
+    ipString:=os.Getenv("CONTAINER_NAME")
     var wg sync.WaitGroup
 
     wg.Add(4) // Add 2 because we have 2 goroutines
