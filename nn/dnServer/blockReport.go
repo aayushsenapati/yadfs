@@ -18,8 +18,14 @@ func receiveFile(conn net.Conn) error {
     if err != nil {
         return err
     }
-
     id := uint8(headerBuf[0])
+
+    _,err=conn.Write([]byte("ack"))
+    if err != nil {
+        fmt.Println("Error sending ack:", err)
+        return err
+    }
+    fmt.Println("Sent ack")
 
     fileSize:=binary.BigEndian.Uint64(headerBuf[1:])
     var reportBuf bytes.Buffer

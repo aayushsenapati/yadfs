@@ -16,6 +16,7 @@ import (
     "encoding/binary"
     "bufio"
     "bytes"
+    "io/ioutil"
 )
 
 type Packet struct {
@@ -310,6 +311,93 @@ func handleNewClient(conn net.Conn) {
                         clientChan <- blockListBuf
                     }()
 
+                case "rm":
+                    if len(cmdArgs) < 2 {
+                        returnMessage = "Usage: rm destination"
+                        break
+                    }
+                    filepath := "root/" + cmdArgs[1] + ".json"
+                
+                    // Check if the file exists
+                    _, err := os.Stat(filepath)
+                    if os.IsNotExist(err) {
+                        returnMessage = "File does not exist"
+                        break
+                    }
+                
+                    // Open the file
+                    file, err := os.Open(filepath)
+                    if err != nil {
+                        returnMessage = "Error opening file: " + err.Error()
+                        break
+                    }
+                    defer file.Close()
+                
+                    // Decode the file
+                    decoder := json.NewDecoder(file)
+                    var fileData FileData
+                    err = decoder.Decode(&fileData)
+                    if err != nil {
+                        returnMessage = "Error decoding file: " + err.Error()
+                        break
+                    }
+                    fmt.Println("\n\n\n\n\nFile data:", fileData.Blocks)
+                    // Iterate over the Blocks field of the FileData object
+                    for _, block := range fileData.Blocks {
+                        for _, blockID := range block {
+                            // Get the data node ID (the first byte of the block ID)
+                            dataNodeID := uint8(blockID >> 56)
+                
+                            // Open the data node file
+                            dnFile, err := os.OpenFile(fmt.Sprintf("blocklogs/%d.bin", dataNodeID), os.O_RDWR, 0644)
+                            if err != nil {
+                                returnMessage = "Error opening data node file: " + err.Error()
+                                break
+                            }
+                
+                            // Read the data node file into a byte slice
+                            dnData, err := ioutil.ReadAll(dnFile)
+                            if err != nil {
+                                returnMessage = "Error reading data node file: " + err.Error()
+                                break
+                            }
+                
+                            // Convert the byte slice to a uint64 slice
+                            dnBlockIDs := make([]uint64, len(dnData)/8)
+                            for i := range dnBlockIDs {
+                                dnBlockIDs[i] = binary.BigEndian.Uint64(dnData[i*8 : (i+1)*8])
+                            }
+                
+                            // Remove the block ID from the slice
+                            for i, dnBlockID := range dnBlockIDs {
+                                if dnBlockID == blockID {
+                                    dnBlockIDs = append(dnBlockIDs[:i], dnBlockIDs[i+1:]...)
+                                    break
+                                }
+                            }
+                            //fmt.Println("\n\n\n\n\nbefore delete", dnBlockIDs)
+                            // Convert the uint64 slice back to a byte slice
+                            dnData = make([]byte, len(dnBlockIDs)*8)
+                            for i, dnBlockID := range dnBlockIDs {
+                                binary.BigEndian.PutUint64(dnData[i*8:(i+1)*8], dnBlockID)
+                            }
+                
+                            // Write the byte slice back to the data node file
+                            _, err = dnFile.WriteAt(dnData, 0)
+                            if err != nil {
+                                returnMessage = "Error writing to data node file: " + err.Error()
+                                break
+                            }
+                            dnFile.Close()
+                        }
+                    }
+                
+                    // Delete the file
+                    err = os.Remove(filepath)
+                    if err != nil {
+                        returnMessage = "Error deleting file: " + err.Error()
+                        break
+                    }
 
                     
 

@@ -32,7 +32,6 @@ func ClientListener(ip, port string) {
 
 
 func handleNewClient(conn net.Conn) {
-	fmt.Println("\n\n\n\n\n\n\n\n\n\nNew client connected!")
 	commandbuf:=make([]byte, 1024)
 	n,err:=conn.Read(commandbuf)
 	if err!=nil {

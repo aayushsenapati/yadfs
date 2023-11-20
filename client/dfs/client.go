@@ -325,7 +325,7 @@ func SendCmd(ip,port string) {
 						fmt.Println("Error opening destination file:", err)
 						os.Exit(1)
 					}
-					defer destFile.Close()//dnewjfbewhrbfherwfbwhrfbwhrefbhwerfbwhrebfhwrebfhwbfehbrfjwherbfjhwbrefjhbwrejbfwbjer
+					defer destFile.Close()
 					for i := 0; i < len(data); i += 12 {
 						// Parse the IP and block ID from the data
 						ip := net.IP(data[i : i+4]).String()
@@ -375,10 +375,18 @@ func SendCmd(ip,port string) {
 				wg.Done()
 			}()
 			wg.Wait()
-		
-		
-		
-		
+
+		case "rm":
+			message := argv[1] + " " + argv[2]
+			fmt.Println("Sending message:", message)
+			byteBuffer := []byte(message)
+
+			_, err := conn.Write(byteBuffer)
+			if(err != nil){
+				fmt.Println("Error sending message:", err)
+				os.Exit(1)
+			}
+
 		}
 	}
 }

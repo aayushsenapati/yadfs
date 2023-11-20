@@ -73,6 +73,13 @@ func sendFile(conn net.Conn, filePath string,id uint8) error {
         return err
     }
 
+    // Wait for the ack
+    _, err = conn.Read(make([]byte, 3))
+    if err != nil {
+        fmt.Println("Error receiving ack:", err)
+        return err
+    }
+
     // Send the file content
     _, err = io.Copy(conn, file)
     if err != nil {
